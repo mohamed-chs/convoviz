@@ -1,5 +1,6 @@
 <p align="center">
   <h1 align="center">Convoviz</h1>
+  <p align="center"><code>uv tool install "convoviz[viz]"</code></p>
   <p align="center">
     Convert your ChatGPT history into clean, readable Markdown (text files).
   </p>
