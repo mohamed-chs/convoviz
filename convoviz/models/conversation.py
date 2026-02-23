@@ -6,7 +6,7 @@ Object path: conversations.json -> conversation (one of the list items)
 from datetime import datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, PrivateAttr, field_validator
 
 from convoviz.models.message import AuthorRole
 from convoviz.models.node import Node, build_node_tree, node_sort_key
@@ -19,8 +19,13 @@ class Conversation(BaseModel):
     This is a pure data model - rendering and I/O logic are in separate modules.
     """
 
-    title: str
+    title: str = ""
     create_time: datetime
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def _coerce_null_title(cls, v: Any) -> str:
+        return v if v is not None else ""
     update_time: datetime
     mapping: dict[str, Node]
     current_node: str

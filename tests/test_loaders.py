@@ -47,11 +47,19 @@ class TestLoadCollection:
         collection = load_collection(mock_zip_file, tmp_path / "tmp")
         assert len(collection.conversations) == 1
 
+    def test_load_from_directory_multi_file(self, tmp_path: Path) -> None:
+        """Test loading from a directory with split conversation files."""
+        dir_path = tmp_path / "split_data"
+        dir_path.mkdir()
+        (dir_path / "conversations-000.json").write_text("[]")
+        (dir_path / "conversations-001.json").write_text("[]")
+
+        collection = load_collection(dir_path, tmp_path / "tmp")
+        assert len(collection.conversations) == 0
+
     def test_invalid_directory_raises(self, tmp_path: Path) -> None:
-        """Test that a directory without conversations.json raises error."""
-        with pytest.raises(
-            InvalidZipError, match=r"Directory must contain conversations.json"
-        ):
+        """Test that a directory without conversation data raises error."""
+        with pytest.raises(InvalidZipError, match=r"missing conversation data"):
             load_collection(tmp_path, tmp_path / "tmp")
 
 
@@ -247,3 +255,61 @@ class TestFindScriptExport:
 
         result = find_script_export(tmp_path)
         assert result == upper
+
+
+class TestSplitConversationFiles:
+    """Tests for split conversation file support (conversations-NNN.json)."""
+
+    def test_validate_zip_multi_file(self, mock_multi_zip_file: Path) -> None:
+        """ZIP with split conversation files should validate."""
+        assert validate_zip(mock_multi_zip_file) is True
+
+    def test_load_collection_from_zip_multi_file(
+        self, mock_multi_zip_file: Path, tmp_path: Path
+    ) -> None:
+        """Loading a ZIP with split files should merge all conversations."""
+        collection = load_collection_from_zip(
+            mock_multi_zip_file, tmp_path / "extracted_multi"
+        )
+        assert len(collection.conversations) == 2
+        titles = {c.title for c in collection.conversations}
+        assert titles == {"conversation 111", "conversation 222"}
+
+    def test_load_from_directory_multi_file(
+        self,
+        mock_conversation_data: dict,
+        second_conversation_data: dict,
+        tmp_path: Path,
+    ) -> None:
+        """Directory with split files should load and merge correctly."""
+        dir_path = tmp_path / "split_dir"
+        dir_path.mkdir()
+        (dir_path / "conversations-000.json").write_text(
+            json.dumps([mock_conversation_data])
+        )
+        (dir_path / "conversations-001.json").write_text(
+            json.dumps([second_conversation_data])
+        )
+
+        collection = load_collection(dir_path, tmp_path / "tmp")
+        assert len(collection.conversations) == 2
+
+    def test_load_multi_file_preserves_all_conversations(
+        self, mock_multi_zip_file: Path, tmp_path: Path
+    ) -> None:
+        """All conversations from every split file should be present."""
+        collection = load_collection_from_zip(
+            mock_multi_zip_file, tmp_path / "extracted_preserve"
+        )
+        ids = {c.conversation_id for c in collection.conversations}
+        assert ids == {"conversation_111", "conversation_222"}
+
+    def test_single_file_preferred_over_split(self, tmp_path: Path) -> None:
+        """When both formats exist, single conversations.json wins."""
+        dir_path = tmp_path / "both"
+        dir_path.mkdir()
+        (dir_path / "conversations.json").write_text("[]")
+        (dir_path / "conversations-000.json").write_text("[]")
+
+        collection = load_collection(dir_path, tmp_path / "tmp")
+        assert len(collection.conversations) == 0

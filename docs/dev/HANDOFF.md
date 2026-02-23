@@ -59,6 +59,8 @@ get_default_config() → ConvovizConfig
 #### Data Flow
 ```
 Input (ZIP/Dir/JSON) → loaders.py → ConversationCollection
+    └── Accepts single conversations.json or split conversations-NNN.json files
+    └── Split files are loaded and merged via ConversationCollection.update()
     └── Contains list of Conversation objects
     └── Sets source_path for asset resolution
 ```
