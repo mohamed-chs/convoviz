@@ -23,7 +23,7 @@ class TestInvalidZipError:
         """Test error message format."""
         error = InvalidZipError("/path/to/file.zip")
         assert "/path/to/file.zip" in str(error)
-        assert "missing conversations.json" in str(error)
+        assert "missing conversation data" in str(error)
 
     def test_custom_reason(self) -> None:
         """Test error with custom reason."""

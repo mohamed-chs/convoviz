@@ -6,9 +6,9 @@ class ConvovizError(Exception):
 
 
 class InvalidZipError(ConvovizError):
-    """Raised when a ZIP file is invalid or missing conversations.json."""
+    """Raised when a ZIP file is invalid or missing conversation data."""
 
-    def __init__(self, path: str, reason: str = "missing conversations.json") -> None:
+    def __init__(self, path: str, reason: str = "missing conversation data") -> None:
         self.path = path
         self.reason = reason
         super().__init__(f"Invalid ZIP file '{path}': {reason}")

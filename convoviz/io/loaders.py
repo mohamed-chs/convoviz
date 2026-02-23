@@ -1,6 +1,7 @@
 """Loading functions for conversations and collections."""
 
 import logging
+import re
 import shutil
 import stat
 from pathlib import Path, PurePosixPath
@@ -12,6 +13,8 @@ from convoviz.exceptions import InvalidZipError
 from convoviz.models import ConversationCollection
 
 logger = logging.getLogger(__name__)
+
+_SPLIT_FILE_RE = re.compile(r"^conversations-\d+\.json$")
 
 
 def _is_safe_zip_member_name(name: str) -> bool:
@@ -87,8 +90,37 @@ def extract_archive(filepath: Path, target_dir: Path) -> Path:
     return target_dir
 
 
+def _find_conversation_files(directory: Path) -> list[Path]:
+    """Find conversation JSON files in a directory.
+
+    Checks for single-file format (``conversations.json``) first, then falls
+    back to the split format (``conversations-000.json``, etc.).
+
+    Returns:
+        Sorted list of conversation file paths, or empty list if none found.
+
+    """
+    single = directory / "conversations.json"
+    if single.exists():
+        return [single]
+
+    return sorted(
+        p for p in directory.iterdir() if p.is_file() and _SPLIT_FILE_RE.match(p.name)
+    )
+
+
+def _has_conversation_entries(namelist: list[str]) -> bool:
+    """Check whether a ZIP namelist contains conversation data files."""
+    if "conversations.json" in namelist:
+        return True
+    return any(_SPLIT_FILE_RE.match(name) for name in namelist)
+
+
 def validate_zip(filepath: Path) -> bool:
-    """Check if a ZIP file contains conversations.json.
+    """Check if a ZIP file contains conversation data.
+
+    Accepts both single-file (``conversations.json``) and split-file
+    (``conversations-NNN.json``) formats.
 
     Args:
         filepath: Path to the ZIP file
@@ -101,7 +133,7 @@ def validate_zip(filepath: Path) -> bool:
         return False
     try:
         with ZipFile(filepath) as zf:
-            return "conversations.json" in zf.namelist()
+            return _has_conversation_entries(zf.namelist())
     except Exception:
         return False
 
@@ -131,10 +163,35 @@ def load_collection_from_json(filepath: Path | str) -> ConversationCollection:
     return ConversationCollection(conversations=data, source_paths=[filepath.parent])
 
 
+def _load_from_conversation_files(directory: Path) -> ConversationCollection:
+    """Load and merge conversation files from a directory.
+
+    Args:
+        directory: Directory containing conversation JSON file(s)
+
+    Returns:
+        Merged ConversationCollection
+
+    Raises:
+        InvalidZipError: If no conversation files are found
+
+    """
+    files = _find_conversation_files(directory)
+    if not files:
+        raise InvalidZipError(str(directory), reason="missing conversation data")
+
+    collection = load_collection_from_json(files[0])
+    for extra in files[1:]:
+        collection.update(load_collection_from_json(extra))
+    return collection
+
+
 def load_collection_from_zip(
     filepath: Path | str, target_dir: Path
 ) -> ConversationCollection:
     """Load a conversation collection from a ChatGPT export ZIP file.
+
+    Supports both single-file and split-file conversation formats.
 
     Args:
         filepath: Path to the ZIP file
@@ -144,7 +201,7 @@ def load_collection_from_zip(
         Loaded ConversationCollection object
 
     Raises:
-        InvalidZipError: If the ZIP file is invalid or missing conversations.json
+        InvalidZipError: If the ZIP file is invalid or missing conversation data
 
     """
     filepath = Path(filepath)
@@ -153,9 +210,7 @@ def load_collection_from_zip(
         raise InvalidZipError(str(filepath))
 
     extract_archive(filepath, target_dir)
-    conversations_path = target_dir / "conversations.json"
-
-    return load_collection_from_json(conversations_path)
+    return _load_from_conversation_files(target_dir)
 
 
 def load_collection(input_path: Path, tmp_path: Path) -> ConversationCollection:
@@ -170,12 +225,7 @@ def load_collection(input_path: Path, tmp_path: Path) -> ConversationCollection:
 
     """
     if input_path.is_dir():
-        json_path = input_path / "conversations.json"
-        if not json_path.exists():
-            raise InvalidZipError(
-                str(input_path), reason="Directory must contain conversations.json"
-            )
-        return load_collection_from_json(json_path)
+        return _load_from_conversation_files(input_path)
 
     if input_path.suffix.lower() == ".json":
         return load_collection_from_json(input_path)
@@ -186,7 +236,8 @@ def load_collection(input_path: Path, tmp_path: Path) -> ConversationCollection:
 def find_latest_valid_zip(directory: Path | None = None) -> Path | None:
     """Find the most recent valid ChatGPT export ZIP in a directory.
 
-    A valid ZIP is one that contains conversations.json.
+    A valid ZIP is one that contains conversation data (either a single
+    ``conversations.json`` or split ``conversations-NNN.json`` files).
 
     Args:
         directory: Directory to search (defaults to ~/Downloads)

@@ -3,7 +3,11 @@
 > **Note**: This changelog is informal and incomplete. It tracks the primary record of all functional and behavioral updates to Convoviz.
 > **APPEND-ONLY. DO NOT EDIT, REWRITE, OR DELETE PAST ENTRIES. ALL NEW UPDATES MUST BE ADDED TO THE TOP.**
 
-## Recent Updates (February 14, 2026)
+## Recent Updates (February 23, 2026)
+
+- **Split conversation file support**: Loaders now accept both single-file (`conversations.json`) and split-file (`conversations-000.json` through `conversations-NNN.json`) ChatGPT export formats. ZIP validation, ZIP loading, and directory loading all handle both formats transparently, merging split files via `ConversationCollection.update()`.
+
+## February 14, 2026
 
 - **Citation Footnotes**: Message citations now render as footnote references in text (`[^n]`) with resolved source definitions emitted at the bottom of each message block, instead of inline links.
 - **Citation Numbering/Deduping**: Footnote numbering now follows source appearance order across indexed and embedded citation formats and reuses numbers for repeated identical sources.

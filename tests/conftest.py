@@ -182,6 +182,50 @@ def mock_zip_file(mock_conversations_json, tmp_path):
     return zip_path
 
 
+@pytest.fixture
+def second_conversation_data() -> dict:
+    """Return a second conversation dict distinct from mock_conversation_data."""
+    ts = DATETIME_111.timestamp() + 600
+    return {
+        "title": "conversation 222",
+        "create_time": ts,
+        "update_time": ts + 300,
+        "mapping": {
+            "root_node_222": make_root_node("root_node_222", ["user_node_222"]),
+            "user_node_222": make_message_node(
+                "user_node_222",
+                "user",
+                "user message 222",
+                "root_node_222",
+                ["assistant_node_222"],
+                ts,
+            ),
+            "assistant_node_222": make_message_node(
+                "assistant_node_222",
+                "assistant",
+                "assistant message 222",
+                "user_node_222",
+                [],
+                ts + 60,
+            ),
+        },
+        "current_node": "assistant_node_222",
+        "conversation_id": "conversation_222",
+    }
+
+
+@pytest.fixture
+def mock_multi_zip_file(
+    mock_conversation_data: dict, second_conversation_data: dict, tmp_path: Path
+):
+    """Create a ZIP with split conversation files (conversations-000/001.json)."""
+    zip_path = tmp_path / "multi_export.zip"
+    with ZipFile(zip_path, "w") as zf:
+        zf.writestr("conversations-000.json", json.dumps([mock_conversation_data]))
+        zf.writestr("conversations-001.json", json.dumps([second_conversation_data]))
+    return zip_path
+
+
 # =============================================================================
 # Additional Conversation Fixtures
 # =============================================================================
