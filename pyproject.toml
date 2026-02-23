@@ -1,6 +1,6 @@
 [project]
 name = "convoviz"
-version = "0.6.2"
+version = "0.7.0"
 description = "Convert your ChatGPT export (ZIP) into clean Markdown text files with inline media, and generate data visualizations like word clouds and usage graphs."
 readme = "README.md"
 requires-python = ">=3.12"
