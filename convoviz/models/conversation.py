@@ -26,6 +26,7 @@ class Conversation(BaseModel):
     @classmethod
     def _coerce_null_title(cls, v: Any) -> str:
         return v if v is not None else ""
+
     update_time: datetime
     mapping: dict[str, Node]
     current_node: str
