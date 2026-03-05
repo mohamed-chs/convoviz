@@ -3,7 +3,7 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import NoReturn, cast
+from typing import NoReturn
 
 from rich.console import Console
 
@@ -63,7 +63,6 @@ def run_pipeline(config: ConvovizConfig) -> None:
     input_path = config.input_path
     if input_path is None:
         fail_zip(Path(), "No input path specified")
-    input_path = cast("Path", input_path)
     if not input_path.exists():
         fail_zip(input_path, "File does not exist")
 
