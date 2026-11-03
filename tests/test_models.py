@@ -602,6 +602,21 @@ class TestBuildNodeTree:
         result = build_node_tree(mapping)
         assert len(result["root"].children_nodes) == 0
 
+    def test_nodes_linked_only_through_parent(self) -> None:
+        """Exports with empty or missing `children` still link through `parent`."""
+        mapping = {
+            "root": Node(id="root", parent=None),
+            "user": Node(id="user", parent="root", children=[]),
+            "assistant": Node(id="assistant", parent="user"),
+        }
+
+        result = build_node_tree(mapping)
+
+        assert result["assistant"].parent_node is result["user"]
+        assert result["user"].parent_node is result["root"]
+        assert result["root"].children_nodes == [result["user"]]
+        assert result["user"].children_nodes == [result["assistant"]]
+
 
 def test_ordered_nodes_handles_parent_cycles() -> None:
     """Active-branch ordering should not loop forever on malformed cycles."""
@@ -629,6 +644,26 @@ def test_ordered_nodes_handles_parent_cycles() -> None:
 
     ordered = conv.ordered_nodes
     assert [node.id for node in ordered] == ["root", "child"]
+
+
+def test_ordered_nodes_follows_parent_links_without_children() -> None:
+    """The whole active branch is found when exports only record `parent`."""
+    conv = Conversation(
+        title="Parent links",
+        create_time=datetime(2024, 1, 1, tzinfo=UTC),
+        update_time=datetime(2024, 1, 1, tzinfo=UTC),
+        mapping={
+            "root": {"id": "root", "message": None, "parent": None},
+            "user": {"id": "user", "message": None, "parent": "root"},
+            "edited": {"id": "edited", "message": None, "parent": "root"},
+            "assistant": {"id": "assistant", "message": None, "parent": "user"},
+        },
+        current_node="assistant",
+        conversation_id="parent-links-conv",
+    )
+
+    ordered = conv.ordered_nodes
+    assert [node.id for node in ordered] == ["root", "user", "assistant"]
 
 
 # =============================================================================

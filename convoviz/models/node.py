@@ -70,4 +70,12 @@ def build_node_tree(mapping: dict[str, Node]) -> dict[str, Node]:
                 child_node = mapping[child_id]
                 node.add_child(child_node)
 
+    # Newer exports leave `children` empty or omit it, so the tree is only
+    # recorded through `parent`. Link any node the pass above did not reach.
+    for node in mapping.values():
+        if node.parent_node is None and node.parent is not None:
+            parent_node = mapping.get(node.parent)
+            if parent_node is not None:
+                parent_node.add_child(node)
+
     return mapping
