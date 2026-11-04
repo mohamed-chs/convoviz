@@ -1,0 +1,345 @@
+r"""Resolve ChatGPT's inline citation markers into neutral source references.
+
+Assistant text carries private-use "widget" markers::
+
+     KIND  PAYLOAD ( PAYLOAD)* 
+
+``cite`` markers point at search results (``turn0search3``), ``entity`` markers
+wrap a JSON ``["type", "name", ...]``, and so on. ``metadata.content_references``
+describes most of them positionally (``start_idx``/``end_idx`` + ``matched_text``).
+Older messages use ``metadata.citations`` (``start_ix``/``end_ix``) with
+``【11†source】`` placeholders.
+
+The output is a :class:`~convoviz.model.TextBlock` whose text contains encoded
+references (``CITE_OPEN`` "0,2" ``CITE_CLOSE``) into its ``sources`` tuple. The
+renderer turns those into footnotes.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import TYPE_CHECKING, Any
+
+import orjson
+
+from convoviz.model import CITE_CLOSE, CITE_OPEN, Source, TextBlock
+
+if TYPE_CHECKING:
+    from convoviz.diagnostics import Diagnostics
+
+_OPEN, _SEP, _CLOSE = "", "", ""
+_MARKER_RE = re.compile(r"([A-Za-z_]+)((?:[^]*)*)")
+_PUA_RE = re.compile(r"[-]")
+_BARE_CITE_RE = re.compile(r"cite(?:turn\d+[a-z_]+\d+(?:L\d+-L\d+)?)+")
+_LEGACY_PLACEHOLDER_RE = re.compile(r"【\d+(?:†[^】]{0,80})?】")
+_TOKEN_RE = re.compile(r"turn\d+[a-z_]+\d+")
+
+# content_references types whose span renders as nothing.
+_DROP_TYPES = frozenset(
+    {
+        "hidden",
+        "sources_footnote",
+        "nav_list",
+        "navigation_list",
+        "image_v2",
+        "image_group",
+        "tldr",
+        "attribution",
+    }
+)
+_LINK_TYPES = frozenset(
+    {
+        "grouped_webpages",
+        "webpage",
+        "webpage_extended",
+        "grouped_webpages_model_predicted_fallback",
+    }
+)
+
+
+class _Sources:
+    def __init__(self) -> None:
+        self.items: list[Source] = []
+        self._index: dict[tuple[str | None, str | None], int] = {}
+
+    def add(self, source: Source) -> int:
+        key = (source.url, None if source.url else source.title)
+        if key not in self._index:
+            self._index[key] = len(self.items)
+            self.items.append(source)
+        return self._index[key]
+
+    def marker(self, sources: list[Source]) -> str:
+        ids = sorted({self.add(s) for s in sources if s.url or s.title})
+        if not ids:
+            return ""
+        return CITE_OPEN + ",".join(map(str, ids)) + CITE_CLOSE
+
+
+def render_text(text: str, meta: dict[str, Any], diagnostics: Diagnostics) -> TextBlock:
+    """Replace citation markers in assistant ``text`` using message ``meta``."""
+    if not text:
+        return TextBlock(text)
+    sources = _Sources()
+    text = text.replace("", "").replace("", "")
+
+    refs = meta.get("content_references")
+    if isinstance(refs, list) and refs:
+        text = _apply_spans(text, _content_reference_spans(text, refs, sources, diagnostics))
+
+    legacy = meta.get("citations")
+    if isinstance(legacy, list) and legacy:
+        text = _apply_spans(text, _legacy_spans(text, legacy, sources))
+
+    if _OPEN in text:
+        lookup = _search_result_lookup(meta)
+        text = _MARKER_RE.sub(lambda m: _render_marker(m, lookup, sources), text)
+
+    text = _LEGACY_PLACEHOLDER_RE.sub("", text)
+    text = _BARE_CITE_RE.sub("", text)
+    text = _PUA_RE.sub("", text)
+    text = _collapse_repeats(text)
+    return TextBlock(text, tuple(sources.items))
+
+
+# --------------------------------------------------------------------------- spans
+
+
+def _apply_spans(text: str, spans: list[tuple[int, int, str]]) -> str:
+    """Apply non-overlapping (start, end, replacement) spans right to left."""
+    last_start = len(text) + 1
+    for start, end, replacement in sorted(spans, key=lambda s: s[0], reverse=True):
+        if end > last_start:
+            continue  # overlaps an already-applied span
+        text = text[:start] + replacement + text[end:]
+        last_start = start
+    return text
+
+
+def _locate(
+    text: str, start: Any, end: Any, matched: str | None, taken: set[int]
+) -> tuple[int, int] | None:
+    """Find a reference's span, tolerating code-point vs UTF-16 index units."""
+    if isinstance(start, int) and isinstance(end, int) and 0 <= start <= end:
+        if (matched is None or text[start:end] == matched) and end <= len(text):
+            return start, end
+        cp_start, cp_end = (
+            _utf16_to_codepoints(text, start),
+            _utf16_to_codepoints(text, end),
+        )
+        if (
+            cp_start is not None
+            and cp_end is not None
+            and (matched is None or text[cp_start:cp_end] == matched)
+        ):
+            return cp_start, cp_end
+    if matched:
+        position = text.find(matched)
+        while position >= 0 and position in taken:
+            position = text.find(matched, position + 1)
+        if position >= 0:
+            return position, position + len(matched)
+    return None
+
+
+def _utf16_to_codepoints(text: str, index: int) -> int | None:
+    units = 0
+    for cp_index, char in enumerate(text):
+        if units >= index:
+            return cp_index if units == index else None
+        units += 2 if ord(char) > 0xFFFF else 1
+    return len(text) if units == index else None
+
+
+def _content_reference_spans(
+    text: str, refs: list[Any], sources: _Sources, diagnostics: Diagnostics
+) -> list[tuple[int, int, str]]:
+    spans: list[tuple[int, int, str]] = []
+    taken: set[int] = set()
+    for ref in refs:
+        if not isinstance(ref, dict):
+            continue
+        matched = ref.get("matched_text") if isinstance(ref.get("matched_text"), str) else None
+        if not matched and not isinstance(ref.get("start_idx"), int):
+            continue
+        location = _locate(text, ref.get("start_idx"), ref.get("end_idx"), matched, taken)
+        if location is None:
+            continue
+        replacement = _content_reference_replacement(
+            ref, text[location[0] : location[1]], sources, diagnostics
+        )
+        if replacement is None:
+            continue  # leave the span for the marker pass
+        taken.add(location[0])
+        spans.append((location[0], location[1], replacement))
+    return spans
+
+
+def _content_reference_replacement(
+    ref: dict[str, Any], span: str, sources: _Sources, diagnostics: Diagnostics
+) -> str | None:
+    raw_kind = ref.get("type")
+    kind = raw_kind if isinstance(raw_kind, str) else ""
+    if kind in _DROP_TYPES:
+        return ""
+    if kind in _LINK_TYPES:
+        return sources.marker(_sources_from_items(ref))
+    if kind == "file":
+        name = ref.get("name")
+        return sources.marker([Source(None, name)]) if isinstance(name, str) else ""
+    if kind == "entity" or (kind.endswith("entity") and _OPEN in span):
+        return _entity_name(span) or _alt(ref) or ""
+    if kind in ("products", "product_entity", "alt_text"):
+        return _alt(ref) or ""
+    if kind:
+        diagnostics.unknown_kind(f"content_reference:{kind}", "")
+    alt = _alt(ref)
+    if alt is not None:
+        return alt
+    if _sources_from_items(ref):
+        return sources.marker(_sources_from_items(ref))
+    return None
+
+
+def _sources_from_items(ref: dict[str, Any]) -> list[Source]:
+    found: list[Source] = []
+    for key in ("items", "sources", "fallback_items"):
+        items = ref.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            found.append(_source(item))
+            supporting = item.get("supporting_websites")
+            if isinstance(supporting, list):
+                found.extend(_source(s) for s in supporting if isinstance(s, dict))
+        if found:
+            break
+    if not found and isinstance(ref.get("url"), str):
+        found.append(_source(ref))
+    return [s for s in found if s.url or s.title]
+
+
+def _source(item: dict[str, Any]) -> Source:
+    def text(key: str) -> str | None:
+        value = item.get(key)
+        return value.strip() or None if isinstance(value, str) else None
+
+    return Source(
+        url=_clean_url(text("url")),
+        title=text("title"),
+        attribution=text("attribution"),
+    )
+
+
+def _clean_url(url: str | None) -> str | None:
+    if not url or not url.startswith(("http://", "https://")):
+        return None
+    # Drop the tracking parameter ChatGPT appends to every cited link.
+    url = re.sub(
+        r"([?&])utm_source=chatgpt\.com(&|$)",
+        lambda m: m.group(1) if m.group(2) else "",
+        url,
+    )
+    return url.rstrip("?&")
+
+
+def _alt(ref: dict[str, Any]) -> str | None:
+    alt = ref.get("alt")
+    if not isinstance(alt, str):
+        return None
+    alt = alt.strip()
+    # "[Name]()" (links without targets) become plain names.
+    return re.sub(r"\[([^\]]+)\]\(\)", r"\1", alt)
+
+
+def _legacy_spans(text: str, citations: list[Any], sources: _Sources) -> list[tuple[int, int, str]]:
+    spans: list[tuple[int, int, str]] = []
+    for cit in citations:
+        if not isinstance(cit, dict):
+            continue
+        start, end = cit.get("start_ix"), cit.get("end_ix")
+        if not (isinstance(start, int) and isinstance(end, int) and 0 <= start < end <= len(text)):
+            continue
+        meta = cit.get("metadata") if isinstance(cit.get("metadata"), dict) else {}
+        spans.append((start, end, sources.marker([_source(meta)])))
+    return spans
+
+
+# --------------------------------------------------------------------------- markers
+
+
+def _search_result_lookup(meta: dict[str, Any]) -> dict[str, Source]:
+    """Map ``turn0search3``-style tokens to sources via ``search_result_groups``."""
+    lookup: dict[str, Source] = {}
+    groups = meta.get("search_result_groups")
+    if not isinstance(groups, list):
+        return lookup
+    for group in groups:
+        entries = group.get("entries") if isinstance(group, dict) else None
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            ref_id = entry.get("ref_id") if isinstance(entry, dict) else None
+            if not isinstance(ref_id, dict):
+                continue
+            turn, rtype, index = (
+                ref_id.get("turn_index"),
+                ref_id.get("ref_type"),
+                ref_id.get("ref_index"),
+            )
+            if isinstance(turn, int) and isinstance(rtype, str) and isinstance(index, int):
+                lookup[f"turn{turn}{rtype}{index}"] = _source(entry)
+    return lookup
+
+
+def _render_marker(match: re.Match[str], lookup: dict[str, Source], sources: _Sources) -> str:
+    kind = match.group(1)
+    payload = [p for p in match.group(2).split(_SEP) if p]
+    if kind == "cite":
+        tokens = [t for p in payload for t in _TOKEN_RE.findall(p)]
+        return sources.marker([lookup[t] for t in tokens if t in lookup])
+    if kind == "entity":
+        return _entity_name(match.group(0)) or ""
+    if kind in ("url", "link") and payload:
+        label = payload[0].strip()
+        target = payload[-1].strip() if len(payload) > 1 else ""
+        if target.startswith(("http://", "https://")):
+            return f"[{label}]({target})"
+        if target in lookup and lookup[target].url:
+            return f"[{label}]({lookup[target].url})"
+        return label
+    return ""  # navlist, image_group, genui, map, products without refs...
+
+
+def _entity_name(span: str) -> str | None:
+    match = _MARKER_RE.search(span)
+    if not match or match.group(1) != "entity":
+        return None
+    payload = match.group(2).lstrip(_SEP)
+    try:
+        data = orjson.loads(payload)
+    except orjson.JSONDecodeError:
+        return payload.split(_SEP)[0] or None
+    if isinstance(data, list) and len(data) > 1 and isinstance(data[1], str):
+        return data[1]
+    if isinstance(data, list) and data and isinstance(data[0], str):
+        return data[0]
+    return None
+
+
+_REPEAT_RE = re.compile(
+    re.escape(CITE_OPEN)
+    + r"([\d,]+)"
+    + re.escape(CITE_CLOSE)
+    + r"(?:\s*"
+    + re.escape(CITE_OPEN)
+    + r"\1"
+    + re.escape(CITE_CLOSE)
+    + r")+"
+)
+
+
+def _collapse_repeats(text: str) -> str:
+    return _REPEAT_RE.sub(lambda m: CITE_OPEN + m.group(1) + CITE_CLOSE, text)

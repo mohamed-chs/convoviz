@@ -1,96 +1,99 @@
 [project]
 name = "convoviz"
-version = "0.7.6"
-description = "Convert your ChatGPT export (ZIP) into clean Markdown text files with inline media, and generate data visualizations like word clouds and usage graphs."
+version = "1.0.0"
+description = "Turn your ChatGPT data export into a clean, local Markdown archive and a personal insights report."
 readme = "README.md"
 requires-python = ">=3.12"
-authors = [
-  { name = "Mohamed Cheikh Sidiya", email = "mohamedcheikhsidiya77@gmail.com" },
-]
 license = "MIT"
-keywords = [
-  "markdown",
-  "chatgpt",
-  "openai",
-  "visualization",
-  "analytics",
-  "json",
-  "export",
-  "data-analysis",
-  "obsidian",
-]
+license-files = ["LICENSE"]
+authors = [{ name = "Mohamed Cheikh Sidiya", email = "mohamedcheikhsidiya77@gmail.com" }]
+keywords = ["chatgpt", "export", "markdown", "obsidian", "archive", "openai", "visualization"]
 classifiers = [
-  "License :: OSI Approved :: MIT License",
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
+  "Topic :: Text Processing :: Markup :: Markdown",
+  "Topic :: Utilities",
+  "Typing :: Typed",
 ]
 dependencies = [
-  "orjson>=3.11.5",
-  "platformdirs>=4.5.1",
-  "pydantic>=2.12.5",
-  "pydantic-settings>=2.7.0",
-  "pyyaml>=6.0.3",
-  "questionary>=2.1.1",
-  "rich>=14.2.0",
-  "tqdm>=4.67.1",
-  "typer>=0.21.0",
+    "cyclopts>=5.3.2",
+    "orjson>=3.13.0",
+    "platformdirs>=4.13.6",
+    "rich>=15.0.0",
 ]
 
 [project.urls]
-Repository = "https://github.com/mohamed-chs/convoviz"
-
-[project.optional-dependencies]
-viz = ["nltk>=3.9.2", "wordcloud>=1.9.5"]
-
-[dependency-groups]
-dev = [
-  "pytest>=8.4.2",
-  "ruff>=0.14.10",
-  "ty>=0.0.11",
-  "types-tqdm>=4.67.0.20250809",
-  # Viz extras for testing (wordcloud pulls in matplotlib + pillow)
-  "nltk>=3.9.2",
-  "wordcloud>=1.9.5",
-  "poethepoet>=0.40.0",
-]
-
-# run with 'uv run poe <task>' eg. 'uv run poe fmt'
-# or if poe is installed globally, 'poe fmt'
-[tool.poe.tasks]
-lint = "ruff check convoviz tests"
-fmt = "ruff format"
-test = "pytest"
-ty = "ty check convoviz"
+Homepage = "https://github.com/mohamed-chs/convoviz"
+Issues = "https://github.com/mohamed-chs/convoviz/issues"
+Changelog = "https://github.com/mohamed-chs/convoviz/blob/main/CHANGELOG.md"
 
 [project.scripts]
-convoviz = "convoviz.cli:main_entry"
+convoviz = "convoviz.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = ["--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
 
 [tool.ty.environment]
 python-version = "3.12"
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
+[tool.ruff]
+line-length = 100
+target-version = "py312"
 
-[build-system]
-requires = ["uv_build"]
-build-backend = "uv_build"
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "COM812",  # conflicts with the formatter
+  "D203",    # conflicts with D211
+  "D213",    # conflicts with D212
+  "CPY001",  # no copyright headers
+  "PLR2004", # magic values are fine in a format-parsing codebase
+  "TRY003",  # long exception messages are fine
+  "EM101",   # literal exception messages are fine
+  "EM102",
+  "C901",    # complexity is reviewed by humans
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+  "PLR0917",
+  "ANN401",  # raw export JSON is genuinely `Any`
+  "FBT001",  # keyword-only booleans are enforced by review
+  "FBT002",
+  "D105",    # magic methods are self-explanatory
+  "D107",    # __init__ is documented on the class
+  "PLC0415", # deliberate lazy imports
+  "RUF001",  # typographic characters (– ’ …) are intentional in user-facing text
+  "RUF002",
+  "RUF003",
+]
 
-[tool.uv.build-backend]
-# Add this line to tell uv your code is in the root, not in src/
-module-root = "."
+[tool.ruff.lint.per-file-ignores]
+"src/convoviz/insights.py" = ["E501"]  # inline HTML/SVG templates
+"tests/**" = ["S101", "D", "ANN", "PLC0415", "E501", "INP001", "SLF001", "ARG001"]
 
-# Files to exclude from the Source Distribution (sdist)
-source-exclude = [
-  ".github",
-  ".vscode",
-  ".gitattributes",
-  ".gitignore",
-  "dev",
-  "playground.ipynb",
-  "pyproject.toml.bak",
-  "uv.lock",
-  "demo",
-  "js",
-  "tests",
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.170.12",
+    "pytest>=9.2.0",
+    "ruff>=0.17.3",
+    "ty>=0.0.93",
 ]
