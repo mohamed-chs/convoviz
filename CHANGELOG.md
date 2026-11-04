@@ -11,6 +11,11 @@ versions follow [SemVer](https://semver.org).
   the output folder is shown as `~/…`, `index.md` and `insights.html` are
   clickable in terminals that support links, and the first run says how to
   open the archive in Obsidian.
+- `convoviz inspect` with no path uses the newest export in Downloads, like
+  `convoviz` does.
+- Config errors say where a misplaced setting belongs (for example,
+  `timezone` goes under `[markdown]`).
+- `--help` no longer shows `[default: False]` next to every flag.
 - The "When you ask" heatmap in `insights.html` is larger and fills its card.
 
 ### Fixed
@@ -18,6 +23,16 @@ versions follow [SemVer](https://semver.org).
 - The models chart counted reasoning steps and tool calls as separate
   replies, which made reasoning models look busier than they were. Each reply
   now counts once.
+- A note that failed to write (a full disk, say) is written on the next run.
+  Before, convoviz took it for a note you had deleted and skipped it.
+- On macOS and Windows, a title that changed only in case (`chat` to `Chat`)
+  no longer deletes the note.
+- A damaged file inside the export ZIP is listed as an error and the rest is
+  converted. Before, the run stopped with a traceback.
+- A cut-short download is reported as such, instead of "Not a ZIP archive".
+- Titles with square brackets no longer garble or crash the summary.
+- When there are more warnings or errors than the summary lists, it says how
+  many were left out.
 
 ## 1.0.0 — 2026-11
 

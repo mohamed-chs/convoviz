@@ -15,6 +15,7 @@ import platformdirs
 from cyclopts import App, Parameter
 from rich.console import Console
 from rich.logging import RichHandler
+from rich.markup import escape
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -48,6 +49,8 @@ from convoviz.stats import compute
 from convoviz.writer import Layout, Writer
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from convoviz.config import Config
     from convoviz.writer import WriteReport
 
@@ -88,10 +91,14 @@ def convert(
     branches: Branches | None = None,
     timezone: str | None = None,
     insights: bool | None = None,
-    force: Annotated[bool, Parameter(negative="")] = False,
-    yes: Annotated[bool, Parameter(name=["--yes", "-y"], negative="")] = False,
-    quiet: Annotated[bool, Parameter(name=["--quiet", "-q"], negative="")] = False,
-    verbose: Annotated[int, Parameter(name=["--verbose", "-v"], count=True)] = 0,
+    force: Annotated[bool, Parameter(negative="", show_default=False)] = False,
+    yes: Annotated[bool, Parameter(name=["--yes", "-y"], negative="", show_default=False)] = False,
+    quiet: Annotated[
+        bool, Parameter(name=["--quiet", "-q"], negative="", show_default=False)
+    ] = False,
+    verbose: Annotated[
+        int, Parameter(name=["--verbose", "-v"], count=True, show_default=False)
+    ] = 0,
     config: Path | None = None,
 ) -> int:
     """Convert a ChatGPT export into Markdown notes.
@@ -141,12 +148,12 @@ def convert(
         paths = _resolve_inputs(exports, assume_yes=yes, quiet=quiet)
         return _run(paths, settings, force=force, quiet=quiet)
     except (UsageError, SourceError, ConfigError) as exc:
-        err.print(f"[red]Error:[/] {exc}")
+        err.print(f"[red]Error:[/] {escape(str(exc))}")
         return 2
     except OSError as exc:
         # Permissions, a full disk, a vanished folder: say what failed, no traceback.
         where = f" ({exc.filename})" if exc.filename else ""
-        err.print(f"[red]Error:[/] {exc.strerror or exc}{where}")
+        err.print(f"[red]Error:[/] {escape(f'{exc.strerror or exc}{where}')}")
         return 1
     except KeyboardInterrupt:
         err.print("\nInterrupted. Run the same command again to finish; nothing is lost.")
@@ -155,10 +162,10 @@ def convert(
 
 @app.command(name="inspect")
 def inspect_export(
-    exports: Annotated[list[Path], Parameter(name="EXPORT")],
+    exports: Annotated[list[Path] | None, Parameter(name="EXPORT")] = None,
     /,
     *,
-    json: Annotated[bool, Parameter(negative="")] = False,
+    json: Annotated[bool, Parameter(negative="", show_default=False)] = False,
 ) -> int:
     """Describe an export's structure, anonymously, for bug reports.
 
@@ -168,19 +175,22 @@ def inspect_export(
     Parameters
     ----------
     exports
-        The export ZIP(s), folder, or conversations.json.
+        The export ZIP(s), folder, or conversations.json. Default: the newest
+        export in Downloads.
     json
         Print machine-readable JSON.
     """
     try:
+        # Read-only, so no confirmation; stderr keeps --json output clean.
+        paths = _resolve_inputs(exports, assume_yes=True, quiet=False, out=err)
         with make_workdir() as workdir:
-            report = census(_open_sources([p.expanduser() for p in exports], Path(workdir)))
-    except SourceError as exc:
-        err.print(f"[red]Error:[/] {exc}")
+            report = census(_open_sources(paths, Path(workdir)))
+    except (UsageError, SourceError) as exc:
+        err.print(f"[red]Error:[/] {escape(str(exc))}")
         return 2
     except OSError as exc:
         where = f" ({exc.filename})" if exc.filename else ""
-        err.print(f"[red]Error:[/] {exc.strerror or exc}{where}")
+        err.print(f"[red]Error:[/] {escape(f'{exc.strerror or exc}{where}')}")
         return 1
     if json:
         sys.stdout.write(orjson.dumps(report, option=orjson.OPT_INDENT_2).decode() + "\n")
@@ -204,11 +214,13 @@ def _print_tree(data: dict[str, object], indent: int = 0) -> None:
 def config_show_path() -> None:
     """Print where the config file is (or would be)."""
     path = config_path()
-    console.print(f"{path}{'' if path.exists() else '  (not created yet)'}")
+    console.print(f"{path}{'' if path.exists() else '  (not created yet)'}", markup=False)
 
 
 @config_app.command(name="init")
-def config_init(*, force: Annotated[bool, Parameter(negative="")] = False) -> int:
+def config_init(
+    *, force: Annotated[bool, Parameter(negative="", show_default=False)] = False
+) -> int:
     """Create a commented config file with every setting.
 
     Parameters
@@ -218,14 +230,14 @@ def config_init(*, force: Annotated[bool, Parameter(negative="")] = False) -> in
     """
     path = config_path()
     if path.exists() and not force:
-        err.print(f"[yellow]{path} already exists.[/] Use --force to replace it.")
+        err.print(f"[yellow]{escape(str(path))} already exists.[/] Use --force to replace it.")
         return 1
     if path.exists():
         backup = path.with_name(path.name + ".bak")
         path.replace(backup)
-        console.print(f"Kept the old file as {backup}")
+        console.print(f"Kept the old file as {backup}", markup=False)
     write_default_config(path)
-    console.print(f"Created {path}")
+    console.print(f"Created {path}", markup=False)
     return 0
 
 
@@ -256,7 +268,9 @@ def _mtime(path: Path) -> float:
         return 0.0
 
 
-def _resolve_inputs(exports: list[Path] | None, *, assume_yes: bool, quiet: bool) -> list[Path]:
+def _resolve_inputs(
+    exports: list[Path] | None, *, assume_yes: bool, quiet: bool, out: Console = console
+) -> list[Path]:
     if exports:
         return [p.expanduser() for p in exports]
     downloads = Path(platformdirs.user_downloads_dir())
@@ -271,8 +285,8 @@ def _resolve_inputs(exports: list[Path] | None, *, assume_yes: bool, quiet: bool
     paths = with_sibling_parts(newest)
     if not quiet:
         age = _age(newest)
-        names = ", ".join(p.name for p in paths)
-        console.print(f"Found export: [bold]{names}[/] ({age})")
+        names = escape(", ".join(p.name for p in paths))
+        out.print(f"Found export: [bold]{names}[/] ({age})")
     if not assume_yes and sys.stdin.isatty() and not Confirm.ask("Use it?", default=True):
         raise UsageError("Cancelled. Pass the export path explicitly.")
     return [newest]
@@ -351,9 +365,8 @@ def _run(paths: list[Path], settings: Config, *, force: bool, quiet: bool) -> in
             )
     if not quiet:
         _summary(report, diagnostics, settings, time.monotonic() - started)
-    elif diagnostics.errors:
-        for message in diagnostics.errors[:10]:
-            err.print(f"[red]error:[/] {message}")
+    else:
+        _messages(err.print, "[red]error:[/]", diagnostics.errors, 10)
     return 1 if diagnostics.errors else 0
 
 
@@ -361,7 +374,7 @@ def _summary(
     report: WriteReport, diagnostics: Diagnostics, settings: Config, seconds: float
 ) -> None:
     say = lambda text: console.print(text, soft_wrap=True)  # noqa: E731 - local shorthand
-    where = f"[bold]{_display(settings.output)}[/]"
+    where = f"[bold]{escape(_display(settings.output))}[/]"
     total = _plural(report.total_notes, "conversation")
     say(f"[bold green]✓[/] {total} in {where} ({seconds:.1f}s)")
     counts = [
@@ -389,7 +402,7 @@ def _summary(
             "Your version was kept (--force replaces it):"
         )
         for path in report.kept_edits[:5]:
-            say(f"    {path}")
+            say(f"    {escape(path)}")
         if len(report.kept_edits) > 5:
             say(f"    … and {len(report.kept_edits) - 5} more")
     if report.edited_current:
@@ -402,7 +415,7 @@ def _summary(
             "(--force brings them back).[/]"
         )
     if report.kept_files:
-        names = ", ".join(report.kept_files)
+        names = escape(", ".join(report.kept_files))
         say(
             f"  [yellow]Left {names} alone[/]: changed since convoviz wrote it, or not "
             "convoviz's. Delete or rename it to get a fresh copy."
@@ -418,18 +431,23 @@ def _summary(
     if diagnostics.skipped:
         n = len(diagnostics.skipped)
         say(f"  [dim]Skipped {n:,} empty or unusable record{'' if n == 1 else 's'}.[/]")
-    for message in diagnostics.warnings[:5]:
-        say(f"  [yellow]warning:[/] {message}")
-    for message in diagnostics.errors[:10]:
-        say(f"  [red]error:[/] {message}")
+    _messages(say, "  [yellow]warning:[/]", diagnostics.warnings, 5)
+    _messages(say, "  [red]error:[/]", diagnostics.errors, 10)
     if diagnostics.unknown or diagnostics.errors:
-        kinds = ", ".join(sorted(diagnostics.unknown)[:6])
+        kinds = escape(", ".join(sorted(diagnostics.unknown)[:6]))
         if kinds:
             say(f"  [dim]Content convoviz doesn't know yet ({kinds}) was shown as plain text.[/]")
         say(
-            "  [dim]If something looks wrong, run `convoviz inspect --json <export>` and share "
+            "  [dim]If something looks wrong, run `convoviz inspect --json` and share "
             f"the output (it contains no personal data) at {ISSUES_URL}[/]"
         )
+
+
+def _messages(say: Callable[[str], None], label: str, messages: list[str], limit: int) -> None:
+    for message in messages[:limit]:
+        say(f"{label} {escape(message)}")
+    if len(messages) > limit:
+        say(f"{label} … and {len(messages) - limit:,} more (run with -v to see them all)")
 
 
 def main() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tomllib
 from typing import TYPE_CHECKING
 
@@ -71,3 +72,18 @@ def test_overrides() -> None:
     config = Config().with_overrides(layout="flat", branches="active", output=None)
     assert config.layout == "flat"
     assert config.render.branches == "active"
+
+
+@pytest.mark.parametrize(
+    ("content", "hint"),
+    [
+        ("timezone = 'Europe/Paris'", "timezone belongs under [markdown]"),
+        ("[markdown]\nlayout = 'flat'", "layout belongs above [markdown]"),
+        ("[markdown]\ntimezone = 'Mars'", 'such as "Europe/Paris"'),
+    ],
+)
+def test_errors_say_how_to_fix_them(tmp_path: Path, content: str, hint: str) -> None:
+    path = tmp_path / "c.toml"
+    path.write_text(content)
+    with pytest.raises(ConfigError, match=re.escape(hint)):
+        load_config(path)

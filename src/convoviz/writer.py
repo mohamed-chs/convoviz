@@ -362,26 +362,31 @@ class Writer:
                 self.state.entries[conversation.id] = entry  # adopt it, edits and all
             return
 
-        self.state.entries[conversation.id] = entry
+        # Record the note only once it is on disk: a failed write is retried next run
+        # instead of looking like a note the user deleted.
         if previous is None or previous.deleted:
             if adopted and not edited:
                 self.report.unchanged += 1
-            elif adopted:
-                _atomic_write(target, data)
-                self.report.updated += 1
             else:
                 _atomic_write(target, data)
-                self.report.created += 1
+                if adopted:
+                    self.report.updated += 1
+                else:
+                    self.report.created += 1
         elif previous.path == rel and previous.sha256 == digest and target.exists() and not edited:
             self.report.unchanged += 1
         else:
             _atomic_write(target, data)
             if previous.path != rel:
-                (self.output / previous.path).unlink(missing_ok=True)
-                _remove_empty_parents(self.output / previous.path, self.output)
+                old = self.output / previous.path
+                # A change of case only names the same file on macOS and Windows.
+                if old.exists() and not old.samefile(target):
+                    old.unlink()
+                    _remove_empty_parents(old, self.output)
                 self.report.moved += 1
             else:
                 self.report.updated += 1
+        self.state.entries[conversation.id] = entry
 
     def _edited(self, entry: Entry) -> bool:
         path = self.output / entry.path
