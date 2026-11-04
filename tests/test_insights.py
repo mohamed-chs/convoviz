@@ -31,7 +31,10 @@ def test_stats() -> None:
     stats = compute(_conversations(), UTC)
     assert stats.conversations == 6
     assert stats.prompts == 6
-    assert stats.replies == 12
+    # Reasoning and answer are one reply, credited to the answer's model.
+    assert stats.replies == 6
+    assert sum(sum(c.values()) for c in stats.models_per_month.values()) == 6
+    assert sum(c["gpt-6"] for c in stats.models_per_month.values()) == 3
     assert stats.first == date(2026, 1, 1)
     assert stats.features["reasoning"] == 6
     assert stats.longest_streak == 1

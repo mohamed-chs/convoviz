@@ -114,19 +114,32 @@ def compute(
                 stats.lengths[bucket_label(low, high)] += 1
                 break
         used: set[str] = set()
+        # One reply is often several stored messages (reasoning, tool calls,
+        # answer). Count it once, for the model of its last message.
+        reply: tuple[datetime, str | None] | None = None
         for message in messages:
             used |= _features(message)
             when = (message.time or conversation.created).astimezone(tz)
             if message.role == "user":
+                _count_reply(stats, reply)
+                reply = None
                 _count_prompt(stats, message, when, ignored_words)
             elif message.role == "assistant":
-                stats.replies += 1
-                if message.model:
-                    stats.models_per_month[f"{when:%Y-%m}"][message.model] += 1
+                reply = (when, message.model or (reply[1] if reply else None))
+        _count_reply(stats, reply)
         stats.features.update(used)
     if stats.per_day:
         stats.first, stats.last = min(stats.per_day), max(stats.per_day)
     return stats
+
+
+def _count_reply(stats: Stats, reply: tuple[datetime, str | None] | None) -> None:
+    if reply is None:
+        return
+    when, model = reply
+    stats.replies += 1
+    if model:
+        stats.models_per_month[f"{when:%Y-%m}"][model] += 1
 
 
 def _count_prompt(stats: Stats, message: Message, when: datetime, ignored: frozenset[str]) -> None:
