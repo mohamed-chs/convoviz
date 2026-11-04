@@ -106,7 +106,7 @@ def convert(
         folder, or conversations.json. Default: the newest export in Downloads.
     output
         Folder to write the archive to. Default: from the config file, else
-        ~/Documents/ChatGPT.
+        ~/Documents/ChatGPT Archive.
     layout
         "year" puts notes in one folder per year; "flat" in a single folder.
     branches

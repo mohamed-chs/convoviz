@@ -52,8 +52,8 @@ class ConfigError(Exception):
 
 
 def default_output() -> Path:
-    """``~/Documents/ChatGPT`` (or the platform's equivalent)."""
-    return Path(platformdirs.user_documents_dir()) / "ChatGPT"
+    """``~/Documents/ChatGPT Archive`` (or the platform's equivalent)."""
+    return Path(platformdirs.user_documents_dir()) / "ChatGPT Archive"
 
 
 def config_path() -> Path:

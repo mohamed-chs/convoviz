@@ -42,7 +42,7 @@ Both install uv if it's missing, then convoviz.
 convoviz
 ```
 
-convoviz finds the newest export in your Downloads folder, asks you to confirm, and writes the archive to `~/Documents/ChatGPT`. To choose the input or output yourself:
+convoviz finds the newest export in your Downloads folder, asks you to confirm, and writes the archive to `~/Documents/ChatGPT Archive`. To choose the input or output yourself:
 
 ```sh
 convoviz ~/Downloads/chatgpt-export.zip -o ~/Notes/ChatGPT
@@ -53,14 +53,14 @@ You can also pass an extracted folder or a bare `conversations.json`. If OpenAI 
 ## What you get
 
 ```
-ChatGPT/
+ChatGPT Archive/
 ├── conversations/
 │   └── 2026/
 │       └── 2026-03-14 Planning a trip to Kyoto.md
 ├── attachments/            your uploads and generated images
 ├── index.md                every conversation, newest first
 ├── Conversations.base      a sortable table in Obsidian
-└── insights.html           charts: activity, hours, models, features, topics
+└── insights.html           charts and word clouds of how you've used ChatGPT
 ```
 
 A note looks like this:
@@ -98,7 +98,7 @@ Fushimi Inari early in the morning, before the crowds[^1]. …
 [^1]: [Fushimi Inari Taisha](https://inari.jp/en/) — inari.jp
 ```
 
-`insights.html` is a single self-contained file. Open it in any browser and it works offline, in light and dark mode.
+`insights.html` is a single self-contained file: your activity calendar, when in the week you ask, models and features over time, and word clouds of what you asked about, for all years and for each year on its own. Open it in any browser; it works offline, in light and dark mode, and each word cloud can be saved as an image.
 
 ## Updating your archive
 
@@ -115,7 +115,7 @@ convoviz keeps track of this in `.convoviz/state.json` inside the output folder.
 
 | Flag | |
 |---|---|
-| `-o, --output PATH` | Output folder (default `~/Documents/ChatGPT`). |
+| `-o, --output PATH` | Output folder (default `~/Documents/ChatGPT Archive`). |
 | `--layout year\|flat` | One folder per year (default) or a single folder. |
 | `--branches all\|active` | Keep edited/regenerated alternatives folded (default), or only the branch you last viewed. |
 | `--timezone ZONE` | Time zone for dates, e.g. `Europe/Paris` (default: your computer's). |

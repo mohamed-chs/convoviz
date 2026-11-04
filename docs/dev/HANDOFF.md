@@ -23,6 +23,11 @@ first reports from users. The design aims to make them visible
 
 ## Known gaps / next steps
 
+- **Unconfirmed format details.** One source reports `library-files.json`
+  (hyphen) and an `export_manifest.json` with an `export_files: [{path,
+  size_bytes}]` inventory instead of `logical_files`. Both are accepted. Another
+  claims mid-2026 exports no longer contain `tool`/`system` messages, which
+  would only mean less to hide.
 - **Library-only files.** `library_files.json` is used only for names and MIME
   types. Generated images and documents that appear *only* in the library
   (linked by `origination_thread_id`, with no pointer in any message) are
@@ -39,8 +44,11 @@ first reports from users. The design aims to make them visible
   rendered anywhere. They could become an optional note or `index.md` section.
 - **Project names.** Only `project_id` is known. If an export ever carries
   project names, group notes by project.
-- **Words chart** uses an English stop list. Other languages work, but filler
-  words in them may show up.
+- **Word clouds** use an English stop list. Other languages work, but filler
+  words in them may show up. The layout runs in the browser (`_CLOUD_JS` in
+  `insights.py`, spiral placement on measured text boxes) and isn't covered by
+  the Python tests. Check it in a browser, at phone and desktop widths, after
+  changing it.
 - **Changing `--timezone`** can change dates in file names, so notes move.
   That's handled (as moves), but it isn't obvious to users.
 - **Other providers.** `model.py` is provider-neutral. A Claude export adapter

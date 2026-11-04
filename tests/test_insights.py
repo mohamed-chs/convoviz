@@ -7,7 +7,7 @@ from factory import ConversationBuilder
 from convoviz.chatgpt.parse import parse_conversation
 from convoviz.diagnostics import Diagnostics
 from convoviz.insights import render_insights
-from convoviz.stats import compute, distinctive_words, tokenize
+from convoviz.stats import compute, distinctive_words, frequent_words, tokenize
 
 DAY = 86_400
 
@@ -44,7 +44,7 @@ def test_tokenize_drops_code_urls_and_stopwords() -> None:
     words = tokenize(
         "Please explain `foo_bar` and https://x.com/a in Python, déjà vu ```\ncode\n```"
     )
-    assert words == ["explain", "python", "déjà"]
+    assert words == ["python", "déjà"]
 
 
 def test_distinctive_words() -> None:
@@ -78,3 +78,26 @@ def test_report_is_self_contained_and_escaped() -> None:
 def test_report_with_no_data() -> None:
     html = render_insights(compute([], UTC))
     assert "No messages found." in html
+
+
+def test_word_clouds_have_all_years_and_one_tab_per_year() -> None:
+    conversations = _conversations()
+    late = ConversationBuilder(conversation_id="late", create_time=1_798_761_600)  # 2027
+    late.user("sourdough starter hydration " * 3)
+    parsed = parse_conversation(late.build(), Diagnostics())
+    assert parsed is not None
+    stats = compute([*conversations, parsed], UTC)
+    assert frequent_words(stats)[0] == ("python", 9)
+    html = render_insights(stats)
+    assert "<h2>What you asked about</h2>" in html
+    assert html.count('role="tab"') == 3  # All years, 2027, 2026
+    assert html.count('class="cloud"') == 3
+    assert 'data-name="All years"' in html
+    assert '<span data-w="1.000" data-n="9">python</span>' in html
+    assert "Save image" in html
+
+
+def test_single_year_has_one_cloud_without_tabs() -> None:
+    html = render_insights(compute(_conversations(), UTC))
+    assert html.count('class="cloud"') == 1
+    assert 'role="tab"' not in html

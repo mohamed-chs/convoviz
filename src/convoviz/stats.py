@@ -329,7 +329,6 @@ STOPWORDS = frozenset(
         "things",
         "something",
         "anything",
-        "also",
         "okay",
         "ok",
         "hi",
@@ -339,7 +338,6 @@ STOPWORDS = frozenset(
         "still",
         "tell",
         "write",
-        "give",
         "show",
         "new",
         "good",
@@ -358,6 +356,32 @@ STOPWORDS = frozenset(
         "let's",
         "doesn't",
         "isn't",
+        # Request verbs and filler typical of prompts, not of topics.
+        "explain",
+        "help",
+        "create",
+        "generate",
+        "provide",
+        "describe",
+        "example",
+        "examples",
+        "question",
+        "answer",
+        "mean",
+        "means",
+        "better",
+        "best",
+        "different",
+        "difference",
+        "able",
+        "think",
+        "look",
+        "find",
+        "work",
+        "works",
+        "try",
+        "here's",
+        "following",
     ]
 )
 
@@ -367,6 +391,14 @@ def tokenize(text: str) -> list[str]:
     text = _URL_RE.sub(" ", _CODE_RE.sub(" ", strip_citations(text)))
     words = (w.lower().replace("’", "'") for w in _WORD_RE.findall(text))
     return [w for w in words if len(w) > 2 and w not in STOPWORDS]
+
+
+def frequent_words(stats: Stats, limit: int = 90) -> list[tuple[str, int]]:
+    """The most used words over all years (words used only once are left out)."""
+    total: Counter[str] = Counter()
+    for counts in stats.words_by_year.values():
+        total.update(counts)
+    return [(word, count) for word, count in total.most_common(limit) if count > 1]
 
 
 def distinctive_words(stats: Stats, per_year: int = 24) -> dict[int, list[tuple[str, float]]]:

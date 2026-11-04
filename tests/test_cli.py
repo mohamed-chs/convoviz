@@ -49,7 +49,7 @@ def test_finds_export_in_downloads(tmp_path: Path, capsys: pytest.CaptureFixture
     _export(downloads, "abc-2026-11-01.zip")
     assert _run(["-y"]) == 0
     assert "abc-2026-11-01.zip" in capsys.readouterr().out
-    assert (tmp_path / "Documents/ChatGPT/index.md").exists()
+    assert (tmp_path / "Documents/ChatGPT Archive/index.md").exists()
 
 
 def test_no_export_found(capsys: pytest.CaptureFixture[str]) -> None:

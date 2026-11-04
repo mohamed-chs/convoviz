@@ -22,8 +22,10 @@ A complete rewrite for ChatGPT's 2026 export format.
   their edits applied; code, output and reasoning folded; generated and
   uploaded images copied with real file extensions.
 - `index.md`, an Obsidian `Conversations.base`, and `insights.html` with
-  activity, hour-of-week, monthly, model, feature, length and topic charts
-  (works offline, light and dark).
+  activity, hour-of-week, monthly, model, feature and length charts, and word
+  clouds of your prompts: all years, plus one per year showing what set it apart
+  (works offline, light and dark; each cloud can be saved as a PNG).
+- The default output folder is `~/Documents/ChatGPT Archive`.
 - `convoviz inspect [--json]`: an anonymous structure report for bug reports.
 - `convoviz config init|path` and a TOML config file.
 
@@ -36,8 +38,8 @@ A complete rewrite for ChatGPT's 2026 export format.
 - Footnote numbers restarted, and collided, in every message.
 
 ### Removed
-- Word cloud images, bundled fonts and the matplotlib/NLTK dependencies
-  (replaced by the insights page).
+- Bundled fonts and the matplotlib, wordcloud and NLTK dependencies. Word
+  clouds are now drawn by the insights page itself.
 - The browser script that downloaded conversations from chatgpt.com directly.
 - Python APIs of 0.x (`ConversationCollection`, `run_pipeline`, …); convoviz is
   a command-line tool.
