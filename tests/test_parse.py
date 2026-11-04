@@ -90,6 +90,29 @@ def test_reasoning_and_recap() -> None:
     assert messages[2].blocks == [ReasoningBlock("", title="Thought for 4s")]
 
 
+def test_thinking_preamble_folds_into_reasoning() -> None:
+    builder = ConversationBuilder()
+    builder.user("q")
+    builder.assistant("Checking the docs first.", metadata={"is_thinking_preamble_message": True})
+    builder.assistant("a")
+    messages = _messages(builder)
+    assert messages[1].blocks == [ReasoningBlock("Checking the docs first.")]
+    assert messages[2].blocks == [TextBlock("a")]
+
+
+def test_interactive_reply_uses_markdown_fallback() -> None:
+    builder = ConversationBuilder()
+    builder.user("q")
+    builder.assistant(
+        '<box>DIL.useState("x")</box>',
+        metadata={"model_dil_v2": {"fallbackMarkdown": "Use <escape><</escape>`a`\n\n- one"}},
+    )
+    diagnostics = Diagnostics()
+    messages = _messages(builder, diagnostics)
+    assert messages[1].blocks == [TextBlock("Use <`a`\n\n- one")]
+    assert diagnostics.counters["interactive_replies"] == 1
+
+
 def test_code_execution_and_output() -> None:
     builder = ConversationBuilder()
     builder.user("plot")

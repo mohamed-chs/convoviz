@@ -206,10 +206,17 @@ def _parse_message(
         blocks = _tool_result(name, content, meta, node_id, ctx)
     elif ctype == "thoughts":
         blocks = _thoughts(content)
+    elif role == "assistant" and meta.get("is_thinking_preamble_message") is True:
+        # Progress notes written between reasoning steps; ChatGPT shows them
+        # inside the thinking panel, not as part of the answer.
+        note = _join_parts(content.get("parts")).strip()
+        blocks = [ReasoningBlock(note)] if note else []
     elif ctype == "reasoning_recap":
         recap = _str(content.get("content"))
         blocks = [ReasoningBlock("", title=recap)] if recap else []
     else:
+        if role == "assistant":
+            content = _interactive_fallback(content, meta, ctx)
         blocks = _content_blocks(role, ctype, content, meta, node_id, ctx)
         if role == "user":
             blocks.extend(_metadata_attachments(meta, blocks))
@@ -224,6 +231,26 @@ def _parse_message(
         model=_str(meta.get("model_slug")) or _str(meta.get("resolved_model_slug")),
         author_name=name,
     )
+
+
+_ESCAPE_RE = re.compile(r"<escape>(.*?)</escape>", re.DOTALL)
+
+
+def _interactive_fallback(
+    content: dict[str, Any], meta: dict[str, Any], ctx: _Context
+) -> dict[str, Any]:
+    """Use the Markdown version of an interactive reply instead of its widget markup.
+
+    Interactive replies keep JSX-like markup (``<box>``, ``DIL.useState(...)``) in
+    ``parts`` and the Markdown ChatGPT falls back to in
+    ``metadata.model_dil_v2.fallbackMarkdown``.
+    """
+    fallback = _dict(meta.get("model_dil_v2")).get("fallbackMarkdown")
+    if not isinstance(fallback, str) or not fallback.strip():
+        return content
+    ctx.diagnostics.count("interactive_replies")
+    # ``<escape>`` wraps a literal character, such as ``<`` in inline code.
+    return {**content, "parts": [_ESCAPE_RE.sub(r"\1", fallback)]}
 
 
 def _content_blocks(
