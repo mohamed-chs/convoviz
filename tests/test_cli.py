@@ -159,3 +159,54 @@ def test_errors_are_listed_verbatim_and_capped(
     assert printed.count("could not write") == 10
     assert "could not write 'Chat [0] [/draft]'" in printed
     assert "… and 2 more" in printed
+
+
+def _damage(path: Path, marker: bytes) -> None:
+    """Flip a byte inside a stored ZIP member, so reading it fails its CRC check."""
+    data = bytearray(path.read_bytes())
+    at = data.index(marker)
+    data[at] ^= 0xFF
+    path.write_bytes(bytes(data))
+
+
+def test_damaged_files_in_the_zip_are_reported_and_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    conversations = []
+    for n, text in enumerate(["kept", "LOST-SHARD"]):
+        b = ConversationBuilder(title=f"Chat {n}", conversation_id=f"id-{n}")
+        b.user("hi")
+        b.assistant(text)
+        b.add(
+            "tool",
+            {
+                "content_type": "multimodal_text",
+                "parts": [
+                    {
+                        "content_type": "image_asset_pointer",
+                        "asset_pointer": f"sediment://file_{n}",
+                    }
+                ],
+            },
+        )
+        conversations.append(b.build())
+    image = PNG_1PX + b"LOST-IMAGE"
+    export = write_export(
+        tmp_path / "export.zip", conversations, sharded=1, files={"file_0-a.dat": image}
+    )
+    _damage(export, b"LOST-SHARD")
+    _damage(export, b"LOST-IMAGE")
+    out = tmp_path / "out"
+    assert _run([str(export), "-o", str(out), "--no-insights"]) == 1
+    printed = capsys.readouterr().out
+    assert "could not read conversations-001.json: damaged" in printed
+    assert "could not copy file_0-a.dat: damaged" in printed
+    assert [p.name for p in (out / "conversations").rglob("*.md")] == ["2026-01-01 Chat 0.md"]
+    assert not (out / "attachments").exists()
+
+
+def test_cut_short_download_says_so(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    export = _export(tmp_path)
+    export.write_bytes(export.read_bytes()[:100])
+    assert _run([str(export), "-o", str(tmp_path / "out")]) == 2
+    assert "download the export again" in capsys.readouterr().err

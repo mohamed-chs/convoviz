@@ -40,7 +40,11 @@ def load_json(member: Member, diagnostics: Diagnostics) -> Any:
     halves (CESU-8) or lone surrogate escapes. Rather than failing the run, those
     are repaired and the file is flagged in the diagnostics.
     """
-    raw = member.read_bytes()
+    try:
+        raw = member.read_bytes()
+    except OSError as exc:
+        diagnostics.error(f"could not read {member.path}: {exc}")
+        return None
     try:
         return orjson.loads(raw)
     except orjson.JSONDecodeError:

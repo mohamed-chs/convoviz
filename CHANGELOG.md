@@ -23,6 +23,9 @@ versions follow [SemVer](https://semver.org).
   Before, convoviz took it for a note you had deleted and skipped it.
 - On macOS and Windows, a title that changed only in case (`chat` to `Chat`)
   no longer deletes the note.
+- A damaged file inside the export ZIP is listed as an error and the rest is
+  converted. Before, the run stopped with a traceback.
+- A cut-short download is reported as such, instead of "Not a ZIP archive".
 - Titles with square brackets no longer garble or crash the summary.
 - When there are more warnings or errors than the summary lists, it says how
   many were left out.

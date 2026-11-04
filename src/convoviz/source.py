@@ -15,18 +15,28 @@ import re
 import shutil
 import tempfile
 import zipfile
+import zlib
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import IO, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Generator, Iterable, Iterator
 
 _NESTED_ZIP_MAX_DEPTH = 2
 
 
 class SourceError(Exception):
     """The input cannot be read as an export."""
+
+
+class DamagedMemberError(OSError):
+    """A file inside the export can't be read back (a corrupt or cut-short ZIP)."""
+
+
+# What zipfile raises for corrupt data: bad CRC, broken deflate stream, early end.
+_DAMAGED = (zipfile.BadZipFile, zlib.error, EOFError)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,19 +64,30 @@ class Member:
 
     def read_bytes(self) -> bytes:
         """Read the whole member."""
-        with self.open() as handle:
+        with self._reading(), self.open() as handle:
             return handle.read()
 
     def head(self, n: int = 64) -> bytes:
         """Read the first ``n`` bytes (for type sniffing)."""
-        with self.open() as handle:
+        with self._reading(), self.open() as handle:
             return handle.read(n)
 
     def copy_to(self, dest: Path) -> None:
-        """Stream the member into ``dest``."""
+        """Stream the member into ``dest`` (nothing is left behind if that fails)."""
         dest.parent.mkdir(parents=True, exist_ok=True)
-        with self.open() as src, dest.open("wb") as dst:
-            shutil.copyfileobj(src, dst, length=1024 * 1024)
+        try:
+            with self._reading(), self.open() as src, dest.open("wb") as dst:
+                shutil.copyfileobj(src, dst, length=1024 * 1024)
+        except BaseException:
+            dest.unlink(missing_ok=True)
+            raise
+
+    @contextmanager
+    def _reading(self) -> Generator[None]:
+        try:
+            yield
+        except _DAMAGED as exc:
+            raise DamagedMemberError("damaged in the archive; download the export again") from exc
 
 
 class _Origin:
@@ -179,6 +200,11 @@ class ExportSource:
             origin = _ZipOrigin(archive, str(path))
             source = cls(origin.members(), [str(path)])
             return source.unnest(workdir)
+        if path.suffix.lower() == ".zip":
+            raise SourceError(
+                f"{path} isn't a complete ZIP archive. The download may have been cut "
+                "short: download the export again."
+            )
         raise SourceError(f"Not a ZIP archive, folder, or JSON file: {path}")
 
     @classmethod

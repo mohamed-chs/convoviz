@@ -140,9 +140,8 @@ class AssetStore:
         name = info.original_name or attachment.name
         stem = slug(PurePosixPath(name).stem) if name else ""
         tail = attachment.file_id.rsplit("-", 1)[-1].rsplit("_", 1)[-1][-8:]
-        filename = f"{stem or attachment.kind}_{tail}{_extension(info)}"
-        destination = self.directory / filename
         try:
+            destination = self.directory / f"{stem or attachment.kind}_{tail}{_extension(info)}"
             if not destination.exists() or destination.stat().st_size != info.member.size:
                 self.directory.mkdir(parents=True, exist_ok=True)
                 info.member.copy_to(destination)
