@@ -54,6 +54,7 @@ python-version = "3.12"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["tests/golden"]  # byte-exact renderer output; never reformat
 
 [tool.ruff.lint]
 select = ["ALL"]
