@@ -117,6 +117,37 @@ def test_title_change_moves_the_note(run) -> None:
     assert _notes(out) == ["conversations/2026/2026-01-01 New name.md"]
 
 
+def test_title_change_in_case_only_keeps_the_note(run) -> None:
+    # On macOS and Windows both names are the same file: it must not be deleted.
+    run([_conv("chat about rust")])
+    report, out = run([_conv("Chat about Rust")])
+    assert report.moved == 1
+    assert [n.casefold() for n in _notes(out)] == [
+        "conversations/2026/2026-01-01 chat about rust.md"
+    ]
+    assert 'title: "Chat about Rust"' in (out / _notes(out)[0]).read_text()
+
+
+def test_failed_write_is_retried_on_the_next_run(run, monkeypatch) -> None:
+    from convoviz import writer
+
+    real = writer._atomic_write
+
+    def fail_on_notes(path, data) -> None:
+        if path.suffix == ".md" and "conversations" in path.parts:
+            raise OSError(28, "No space left on device")
+        real(path, data)
+
+    monkeypatch.setattr(writer, "_atomic_write", fail_on_notes)
+    report, out = run([_conv()])
+    assert report.created == 0
+    assert _notes(out) == []
+    monkeypatch.setattr(writer, "_atomic_write", real)
+    report, _ = run([_conv()])
+    assert (report.created, report.deleted_skipped) == (1, 0)
+    assert len(_notes(out)) == 1
+
+
 def test_user_edits_are_kept_unless_forced(run) -> None:
     _, out = run([_conv()])
     note = out / _notes(out)[0]
