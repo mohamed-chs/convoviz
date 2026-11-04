@@ -29,7 +29,9 @@ if TYPE_CHECKING:
     from convoviz.diagnostics import Diagnostics
 
 _OPEN, _SEP, _CLOSE = "\ue200", "\ue202", "\ue201"
-_MARKER_RE = re.compile(r"\ue200([A-Za-z_]+)((?:\ue202[^\ue200\ue201]*)*)\ue201")
+# Each segment is one separator plus non-separators, so a match splits only one way
+# (no catastrophic backtracking on long runs of separators).
+_MARKER_RE = re.compile(r"\ue200([A-Za-z_]+)((?:\ue202[^\ue200\ue201\ue202]*)*)\ue201")
 _PUA_RE = re.compile(r"[\ue200-\ue2ff]")
 _BARE_CITE_RE = re.compile(r"cite(?:turn\d+[a-z_]+\d+(?:L\d+-L\d+)?)+")
 _LEGACY_PLACEHOLDER_RE = re.compile(r"【\d+(?:†[^】]{0,80})?】")

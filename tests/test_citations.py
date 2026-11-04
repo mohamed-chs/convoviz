@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from convoviz.chatgpt.citations import render_text
 from convoviz.diagnostics import Diagnostics
 from convoviz.model import CITE_CLOSE, CITE_OPEN, Source
@@ -223,3 +225,10 @@ def test_unknown_widgets_fall_back_to_alt_and_are_reported() -> None:
     block = render_text("Here w.", {"content_references": [ref]}, diagnostics)
     assert block.text == "Here (a map)."
     assert diagnostics.unknown["widget:maps_widget"] == 1
+
+
+def test_marker_regex_has_no_catastrophic_backtracking() -> None:
+    text = f"{OPEN}cite" + SEP * 5000 + "x"  # never closed
+    started = time.perf_counter()
+    assert render_text(text, {}, Diagnostics()).text == "citex"
+    assert time.perf_counter() - started < 1.0
