@@ -52,6 +52,35 @@ def test_finds_export_in_downloads(tmp_path: Path, capsys: pytest.CaptureFixture
     assert (tmp_path / "Documents/ChatGPT Archive/index.md").exists()
 
 
+def test_output_problems_are_reported_without_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a_file = tmp_path / "afile"
+    a_file.write_text("x")
+    assert _run([str(_export(tmp_path)), "-o", str(a_file)]) == 2
+    assert "is a file" in capsys.readouterr().err
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError(13, "Permission denied", str(tmp_path / "locked"))
+
+    monkeypatch.setattr("convoviz.writer.Writer.write", refuse)
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "locked")]) == 1
+    err = capsys.readouterr().err
+    assert "Permission denied" in err
+    assert "Traceback" not in err
+
+
+def test_interrupt_is_reported(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def interrupt(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("convoviz.writer.Writer.write", interrupt)
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "o")]) == 130
+    assert "Run the same command again" in capsys.readouterr().err
+
+
 def test_no_export_found(capsys: pytest.CaptureFixture[str]) -> None:
     assert _run(["-y"]) == 2
     assert "No ChatGPT export found" in capsys.readouterr().err

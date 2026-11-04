@@ -137,11 +137,20 @@ def convert(
             branches=branches,
             timezone=parse_timezone(timezone) if timezone else None,
         )
+        _check_output(settings.output)
         paths = _resolve_inputs(exports, assume_yes=yes, quiet=quiet)
         return _run(paths, settings, force=force, quiet=quiet)
     except (UsageError, SourceError, ConfigError) as exc:
         err.print(f"[red]Error:[/] {exc}")
         return 2
+    except OSError as exc:
+        # Permissions, a full disk, a vanished folder: say what failed, no traceback.
+        where = f" ({exc.filename})" if exc.filename else ""
+        err.print(f"[red]Error:[/] {exc.strerror or exc}{where}")
+        return 1
+    except KeyboardInterrupt:
+        err.print("\nInterrupted. Run the same command again to finish; nothing is lost.")
+        return 130
 
 
 @app.command(name="inspect")
@@ -169,6 +178,10 @@ def inspect_export(
     except SourceError as exc:
         err.print(f"[red]Error:[/] {exc}")
         return 2
+    except OSError as exc:
+        where = f" ({exc.filename})" if exc.filename else ""
+        err.print(f"[red]Error:[/] {exc.strerror or exc}{where}")
+        return 1
     if json:
         sys.stdout.write(orjson.dumps(report, option=orjson.OPT_INDENT_2).decode() + "\n")
         return 0
@@ -259,6 +272,11 @@ def _resolve_inputs(exports: list[Path] | None, *, assume_yes: bool, quiet: bool
     if not assume_yes and sys.stdin.isatty() and not Confirm.ask("Use it?", default=True):
         raise UsageError("Cancelled. Pass the export path explicitly.")
     return [newest]
+
+
+def _check_output(output: Path) -> None:
+    if output.exists() and not output.is_dir():
+        raise UsageError(f"The output {output} is a file; pass a folder.")
 
 
 def _age(path: Path) -> str:
