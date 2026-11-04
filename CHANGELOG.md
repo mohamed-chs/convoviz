@@ -20,6 +20,8 @@ A complete rewrite for ChatGPT's 2026 export format.
   didn't create are never overwritten (`--force` overrides edits and deletions).
 - Edited and regenerated replies are kept, folded where they branch
   (`--branches active` for the visible branch only).
+- Generated images and files that the export lists only in its file library
+  are added to their conversation's note ("Files from this conversation").
 - Sources as footnotes, numbered once per conversation; Canvas documents with
   their edits applied; code, output and reasoning folded; generated and
   uploaded images copied with real file extensions.

@@ -28,12 +28,11 @@ first reports from users. The design aims to make them visible
   size_bytes}]` inventory instead of `logical_files`. Both are accepted. Another
   claims mid-2026 exports no longer contain `tool`/`system` messages, which
   would only mean less to hide.
-- **Library-only files.** `library_files.json` is used only for names and MIME
-  types. Generated images and documents that appear *only* in the library
-  (linked by `origination_thread_id`, with no pointer in any message) are
-  not added to their conversation. Adding them as a "Files from this
-  conversation" section is the natural next step once real data confirms the
-  linkage.
+- **Library-only files.** Library entries whose `origination_thread_id` names a
+  conversation, and which no message shows, are added to that note under "Files
+  from this conversation" (`Conversation.files`). That the field is the
+  conversation id is an assumption: no 2026 source confirms it. If it's wrong,
+  nothing is added (check `library_files_added` in `inspect --json`).
 - **Deep research / agent mode.** `research_kickoff_tool` and other agent
   plumbing is hidden. Whether the final report always arrives as a normal
   assistant message is unverified.

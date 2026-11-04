@@ -199,12 +199,23 @@ class AssetInfo:
     mime: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class LibraryFile:
+    """An entry of ``library_files.json`` that names the conversation it came from."""
+
+    file_id: str
+    conversation_id: str
+    name: str | None
+    mime: str | None
+
+
 @dataclass(slots=True)
 class AssetIndex:
     """Resolve asset pointers (``sediment://file_…``) to export members."""
 
     by_id: dict[str, AssetInfo] = field(default_factory=dict)
     by_member: dict[str, AssetInfo] = field(default_factory=dict)
+    library: list[LibraryFile] = field(default_factory=list)
 
     @classmethod
     def build(cls, source: ExportSource, diagnostics: Diagnostics) -> AssetIndex:
@@ -268,15 +279,23 @@ class AssetIndex:
             if not isinstance(entry, dict) or entry.get("deleted_at") or entry.get("trashed_at"):
                 continue
             file_id = entry.get("file_id")
-            info = self.by_id.get(file_id) if isinstance(file_id, str) else None
+            if not isinstance(file_id, str) or not file_id:
+                continue
+            raw_name, raw_mime = entry.get("file_name"), entry.get("mime_type")
+            name = (
+                PurePosixPath(raw_name).name
+                if isinstance(raw_name, str) and raw_name and not _looks_generated_name(raw_name)
+                else None
+            )
+            mime = raw_mime if isinstance(raw_mime, str) and raw_mime else None
+            origin = entry.get("origination_thread_id")
+            if isinstance(origin, str) and origin:
+                self.library.append(LibraryFile(file_id, origin, name, mime))
+            info = self.by_id.get(file_id)
             if info is None:
                 continue
-            name = entry.get("file_name")
-            if isinstance(name, str) and name and not _looks_generated_name(name):
-                info.original_name = info.original_name or PurePosixPath(name).name
-            mime = entry.get("mime_type")
-            if isinstance(mime, str) and mime:
-                info.mime = info.mime or mime
+            info.original_name = info.original_name or name
+            info.mime = info.mime or mime
 
     def merge(self, other: AssetIndex) -> None:
         """Add ``other``'s files; entries already known here win."""
@@ -284,6 +303,8 @@ class AssetIndex:
             self.by_id.setdefault(key, info)
         for key, info in other.by_member.items():
             self.by_member.setdefault(key, info)
+        known = {f.file_id for f in self.library}
+        self.library.extend(f for f in other.library if f.file_id not in known)
 
     def resolve(self, pointer: str) -> AssetInfo | None:
         """Find the stored file for an asset pointer or file id."""

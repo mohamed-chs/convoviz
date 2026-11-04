@@ -86,6 +86,7 @@ def render_conversation(
         frontmatter(conversation, thread, options),
         f"# {escape_inline(conversation.title)}",
         body,
+        renderer.files(conversation.files),
     ]
     if renderer.footnotes:
         parts.append(renderer.footnote_section())
@@ -392,6 +393,13 @@ class _Renderer:
         if attachment.kind == "image":
             return f"![{label}]({_link_target(target)})"
         return f"[📎 {escape_inline(name)}]({_link_target(target)})"
+
+    def files(self, attachments: list[Attachment]) -> str:
+        """Files linked to the conversation outside its messages."""
+        if not attachments:
+            return ""
+        items = [self.attachment(AttachmentBlock(a)) for a in attachments]
+        return "## Files from this conversation\n\n" + "\n\n".join(items)
 
     def document(self, block: DocumentBlock) -> str:
         title = block.title or "Canvas"

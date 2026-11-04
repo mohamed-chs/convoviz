@@ -168,6 +168,9 @@ class Conversation:
     gizmo_id: str | None = None
     project_id: str | None = None
     provider: str = "chatgpt"
+    # Files that belong to the conversation but appear in no message (e.g. the
+    # export's file library); rendered at the end of the note.
+    files: list[Attachment] = field(default_factory=list)
     extra: dict[str, object] = field(default_factory=dict)
 
 

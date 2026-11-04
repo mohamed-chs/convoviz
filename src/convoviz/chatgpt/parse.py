@@ -346,7 +346,7 @@ def _metadata_attachments(meta: dict[str, Any], blocks: list[Block]) -> list[Blo
             continue
         mime = _str(att.get("mime_type"))
         extra.append(
-            AttachmentBlock(Attachment(file_id, _kind_for(mime, name), name=name, mime=mime))
+            AttachmentBlock(Attachment(file_id, kind_for(mime, name), name=name, mime=mime))
         )
     # Give inline images their upload names, when known.
     for i, block in enumerate(blocks):
@@ -358,7 +358,8 @@ def _metadata_attachments(meta: dict[str, Any], blocks: list[Block]) -> list[Blo
     return extra
 
 
-def _kind_for(mime: str | None, name: str | None) -> AttachmentKind:
+def kind_for(mime: str | None, name: str | None) -> AttachmentKind:
+    """Attachment kind from a MIME type or, failing that, a file name."""
     probe = (mime or "").lower()
     lowered = (name or "").lower()
     if probe.startswith("image/") or lowered.endswith(

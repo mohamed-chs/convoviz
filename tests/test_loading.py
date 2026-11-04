@@ -144,3 +144,52 @@ def test_inventory_manifest_and_hyphenated_names(tmp_path: Path, load) -> None:
     report = export.assets.resolve("file-service://file-Abc123XYZ")
     assert report is not None
     assert report.mime == "x/y"
+
+
+def test_library_only_files_are_attached_to_their_conversation(tmp_path: Path, load) -> None:
+    from convoviz.render import RenderOptions, render_conversation
+
+    conv_id = "00000000-0000-4000-8000-000000000001"
+    builder = ConversationBuilder(title="Pictures", conversation_id=conv_id)
+    builder.user("draw a cat")
+    builder.add(
+        "tool",
+        {
+            "content_type": "multimodal_text",
+            "parts": [
+                {
+                    "content_type": "image_asset_pointer",
+                    "asset_pointer": "sediment://file_0000shown",
+                }
+            ],
+        },
+    )
+    builder.assistant("Here it is.")
+    library = [
+        {"file_id": "file_0000shown", "origination_thread_id": conv_id, "mime_type": "image/png"},
+        {"file_id": "file_0000extra", "origination_thread_id": conv_id, "mime_type": "image/png"},
+        {"file_id": "file_0000gone", "origination_thread_id": conv_id, "file_name": "Plan.pdf"},
+        {"file_id": "file_0000trash", "origination_thread_id": conv_id, "trashed_at": 1},
+        {"file_id": "file_0000other", "origination_thread_id": "someone-else"},
+    ]
+    path = write_export(
+        tmp_path / "e.zip",
+        [builder.build()],
+        files={"file_0000shown-a.dat": PNG_1PX, "file_0000extra-b.dat": PNG_1PX},
+        extra_json={"library_files.json": library},
+    )
+    export, diagnostics = load(path)
+    conversation = export.conversations[0]
+    assert [(a.file_id, a.kind, a.name) for a in conversation.files] == [
+        ("file_0000extra", "image", None),
+        ("file_0000gone", "file", "Plan.pdf"),
+    ]
+    assert diagnostics.counters["library_files_added"] == 2
+
+    def resolve(attachment):
+        return "x.png" if export.assets.resolve(attachment.file_id) else None
+
+    note = render_conversation(conversation, RenderOptions(), resolve).text
+    files_section = note.split("## Files from this conversation", 1)[1]
+    assert files_section.strip().splitlines()[0] == "![](x.png)"
+    assert "*[Plan.pdf not included in the export]*" in files_section
