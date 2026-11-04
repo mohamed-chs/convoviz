@@ -97,7 +97,8 @@ def render_text(text: str, meta: dict[str, Any], diagnostics: Diagnostics) -> Te
 
     if _OPEN in text:
         lookup = _search_result_lookup(meta)
-        text = _MARKER_RE.sub(lambda m: _render_marker(m, lookup, sources), text)
+        products = _product_lookup(refs if isinstance(refs, list) else [])
+        text = _MARKER_RE.sub(lambda m: _render_marker(m, lookup, products, sources), text)
 
     text = _LEGACY_PLACEHOLDER_RE.sub("", text)
     text = _BARE_CITE_RE.sub("", text)
@@ -204,7 +205,10 @@ def _content_reference_replacement(
     if kind == "entity" or (kind.endswith("entity") and _OPEN in span):
         return _entity_name(span) or _alt(ref) or ""
     if kind in ("products", "product_entity", "alt_text"):
-        return _alt(ref) or ""
+        if alt := _alt(ref):
+            return alt
+        # A product carousel marker: rendered from its own payload later.
+        return None if f"{_OPEN}products{_SEP}" in span else ""
     if kind:
         diagnostics.unknown_kind(f"content_reference:{kind}", "")
     alt = _alt(ref)
@@ -384,8 +388,15 @@ def _search_result_lookup(meta: dict[str, Any]) -> dict[str, Source]:
     return lookup
 
 
-def _render_marker(match: re.Match[str], lookup: dict[str, Source], sources: _Sources) -> str:
+def _render_marker(
+    match: re.Match[str],
+    lookup: dict[str, Source],
+    products: dict[str, dict[str, Any]],
+    sources: _Sources,
+) -> str:
     kind = match.group(1)
+    if kind == "products":
+        return _product_list(match.group(2).lstrip(_SEP), products)
     payload = [p for p in match.group(2).split(_SEP) if p]
     if kind == "cite":
         tokens = [t for p in payload for t in _TOKEN_RE.findall(p)]
@@ -400,7 +411,56 @@ def _render_marker(match: re.Match[str], lookup: dict[str, Source], sources: _So
         if target in lookup and lookup[target].url:
             return f"[{label}]({lookup[target].url})"
         return label
-    return ""  # navlist, image_group, genui, map, products without refs...
+    return ""  # navlist, image_group, genui, map...
+
+
+_PRODUCT_ID_RE = re.compile(r"product\d+$")
+
+
+def _product_key(cite: str) -> str:
+    # The marker says "turn461031product2", the reference "turn1product2".
+    match = _PRODUCT_ID_RE.search(cite)
+    return match.group(0) if match else cite
+
+
+def _product_lookup(refs: list[Any]) -> dict[str, dict[str, Any]]:
+    """Product details (``title``, ``price``, ``merchants``) by product id."""
+    lookup: dict[str, dict[str, Any]] = {}
+    for ref in refs:
+        products = ref.get("products") if isinstance(ref, dict) else None
+        for product in products if isinstance(products, list) else ():
+            if isinstance(product, dict) and isinstance(product.get("cite"), str):
+                lookup.setdefault(_product_key(product["cite"]), product)
+    return lookup
+
+
+def _product_list(payload: str, products: dict[str, dict[str, Any]]) -> str:
+    """A shopping carousel becomes a list of its products' names, prices and shops.
+
+    The payload is ``{"selections": [["turn0product1", "Name"], ...]}``. Images and
+    purchase links are not in the export.
+    """
+    try:
+        data = orjson.loads(payload)
+    except orjson.JSONDecodeError:
+        return ""
+    selections = data.get("selections") if isinstance(data, dict) else None
+    lines: list[str] = []
+    for selection in selections if isinstance(selections, list) else ():
+        if not (isinstance(selection, list) and selection and isinstance(selection[0], str)):
+            continue
+        product = products.get(_product_key(selection[0]), {})
+        fallback = selection[1] if len(selection) > 1 and isinstance(selection[1], str) else None
+        name = _text(product.get("title")) or _text(fallback)
+        if not name:
+            continue
+        details = [_text(product.get("price")), _text(product.get("featured_tag"))]
+        merchants = _text(product.get("merchants"))
+        if merchants:
+            details.append(merchants.split(" - ")[0])
+        extra = " · ".join(d for d in details if d)
+        lines.append(f"- **{_link_text(name)}**" + (f" — {extra}" if extra else ""))
+    return "\n\n" + "\n".join(lines) + "\n\n" if lines else ""
 
 
 def _entity_name(span: str) -> str | None:

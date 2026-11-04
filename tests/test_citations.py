@@ -184,3 +184,26 @@ def test_safe_urls_and_sources_footnote() -> None:
         Source("https://review.example/b", "Review"),
     )
     assert block.text == f"Buy{CITE_OPEN}0{CITE_CLOSE}.\n\nSources: {CITE_OPEN}1{CITE_CLOSE}"
+
+
+def test_product_carousels_list_their_products() -> None:
+    payload = '{"selections":[["turn9product1","Fallback A"],["turn9product2","Only name"]]}'
+    marker = f"{OPEN}products{SEP}{payload}{CLOSE}"
+    refs = [
+        {
+            "type": "products",
+            "matched_text": marker,
+            "products": [
+                {
+                    "cite": "turn0product1",
+                    "title": "Headphones A",
+                    "price": "$99",
+                    "merchants": "Shop.example - Seller",
+                }
+            ],
+        }
+    ]
+    block = _render(f"Options:\n{marker}", {"content_references": refs})
+    assert block.text == (
+        "Options:\n\n\n- **Headphones A** — $99 · Shop.example\n- **Only name**\n\n"
+    )
