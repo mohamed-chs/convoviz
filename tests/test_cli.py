@@ -1,183 +1,134 @@
-"""Tests for the CLI."""
+from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import patch
+import json
+from typing import TYPE_CHECKING
 
 import pytest
-from typer.testing import CliRunner
+from factory import PNG_1PX, ConversationBuilder, write_export
 
-from convoviz.cli import app
-from convoviz.config import OutputKind
+from convoviz import cli
 
-runner = CliRunner()
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+def _export(tmp_path: Path, name: str = "export.zip") -> Path:
+    b = ConversationBuilder(title="Hello")
+    b.user("hi")
+    b.assistant("hello there")
+    return write_export(tmp_path / name, [b.build(), {}], files={"file_1-a.dat": PNG_1PX})
+
+
+def _run(args: list[str]) -> int:
+    return cli.app(args, result_action="return_value")
 
 
 @pytest.fixture(autouse=True)
-def _isolate_user_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(
-        "convoviz.config.get_user_config_path",
-        lambda: tmp_path / "convoviz.toml",
-    )
+def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "config_path", lambda: tmp_path / "cfg/config.toml")
+    monkeypatch.setattr("convoviz.config.config_path", lambda: tmp_path / "cfg/config.toml")
+    monkeypatch.setattr("platformdirs.user_downloads_dir", lambda: str(tmp_path / "Downloads"))
+    monkeypatch.setattr("platformdirs.user_documents_dir", lambda: str(tmp_path / "Documents"))
 
 
-def test_main_with_args(mock_zip_file: Path, tmp_path: Path) -> None:
-    """Test running with arguments calls run_pipeline."""
-    output_dir = tmp_path / "output"
-
-    with patch("convoviz.cli.run_pipeline") as mock_run:
-        result = runner.invoke(
-            app,
-            ["--zip", str(mock_zip_file), "--output", str(output_dir)],
-        )
-
-        assert result.exit_code == 0
-        mock_run.assert_called_once()
-        config = mock_run.call_args[0][0]
-        assert config.input_path == mock_zip_file
-        assert config.output_folder == output_dir
+def test_convert(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    out = tmp_path / "out"
+    assert _run([str(_export(tmp_path)), "-o", str(out), "--timezone", "UTC"]) == 0
+    assert (out / "conversations/2026/2026-01-01 Hello.md").exists()
+    assert (out / "insights.html").exists()
+    printed = capsys.readouterr().out
+    assert "1 conversation" in printed
+    assert "1 new" in printed
+    assert _run([str(_export(tmp_path)), "-o", str(out), "-q", "--no-insights"]) == 0
+    assert capsys.readouterr().out == ""
 
 
-def test_main_missing_zip_non_interactive() -> None:
-    """Test failing when zip is missing in non-interactive mode."""
-    with (
-        patch("convoviz.cli.find_latest_valid_zip", return_value=None),
-        patch("convoviz.cli.run_pipeline") as mock_run,
-    ):
-        result = runner.invoke(app, ["--output", "foo", "--no-interactive"])
-        assert result.exit_code == 1
-        mock_run.assert_not_called()
+def test_finds_export_in_downloads(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+    _export(downloads, "abc-2026-11-01.zip")
+    assert _run(["-y"]) == 0
+    assert "abc-2026-11-01.zip" in capsys.readouterr().out
+    assert (tmp_path / "Documents/ChatGPT Archive/index.md").exists()
 
 
-def test_interactive_flag_respected() -> None:
-    """Test that --interactive flag triggers interactive mode."""
-    with (
-        patch("convoviz.cli.run_interactive_config") as mock_interactive,
-        patch("convoviz.cli.run_pipeline") as mock_run,
-    ):
-        # Return a valid config from interactive mock
-        from convoviz.config import get_default_config
+def test_output_problems_are_reported_without_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a_file = tmp_path / "afile"
+    a_file.write_text("x")
+    assert _run([str(_export(tmp_path)), "-o", str(a_file)]) == 2
+    assert "is a file" in capsys.readouterr().err
 
-        mock_config = get_default_config()
-        mock_config.input_path = Path("dummy.zip")
-        mock_interactive.return_value = mock_config
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError(13, "Permission denied", str(tmp_path / "locked"))
 
-        result = runner.invoke(app, ["--interactive"])
-        assert result.exit_code == 0
-        mock_interactive.assert_called_once()
-        mock_run.assert_called_once()
-
-
-def test_interactive_ctrl_c_exits_cleanly() -> None:
-    """Test Ctrl+C in interactive mode exits without running pipeline."""
-    with (
-        patch("convoviz.cli.run_interactive_config", side_effect=KeyboardInterrupt),
-        patch("convoviz.cli.run_pipeline") as mock_run,
-    ):
-        result = runner.invoke(app, ["--interactive"])
-        assert result.exit_code == 0
-        mock_run.assert_not_called()
+    monkeypatch.setattr("convoviz.writer.Writer.write", refuse)
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "locked")]) == 1
+    err = capsys.readouterr().err
+    assert "Permission denied" in err
+    assert "Traceback" not in err
 
 
-def test_outputs_flag_single(mock_zip_file: Path, tmp_path: Path) -> None:
-    """Test --outputs flag with single value."""
-    output_dir = tmp_path / "output"
+def test_interrupt_is_reported(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def interrupt(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt
 
-    with patch("convoviz.cli.run_pipeline") as mock_run:
-        result = runner.invoke(
-            app,
-            [
-                "--zip",
-                str(mock_zip_file),
-                "--output",
-                str(output_dir),
-                "--outputs",
-                "markdown",
-            ],
-        )
-
-        assert result.exit_code == 0
-        mock_run.assert_called_once()
-        config = mock_run.call_args[0][0]
-        assert config.outputs == {OutputKind.MARKDOWN}
+    monkeypatch.setattr("convoviz.writer.Writer.write", interrupt)
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "o")]) == 130
+    assert "Run the same command again" in capsys.readouterr().err
 
 
-def test_outputs_flag_multiple(mock_zip_file: Path, tmp_path: Path) -> None:
-    """Test --outputs flag with multiple values."""
-    output_dir = tmp_path / "output"
-
-    with patch("convoviz.cli.run_pipeline") as mock_run:
-        result = runner.invoke(
-            app,
-            [
-                "--zip",
-                str(mock_zip_file),
-                "--output",
-                str(output_dir),
-                "--outputs",
-                "markdown",
-                "--outputs",
-                "graphs",
-            ],
-        )
-
-        assert result.exit_code == 0
-        mock_run.assert_called_once()
-        config = mock_run.call_args[0][0]
-        assert config.outputs == {OutputKind.MARKDOWN, OutputKind.GRAPHS}
+def test_no_export_found(capsys: pytest.CaptureFixture[str]) -> None:
+    assert _run(["-y"]) == 2
+    assert "No ChatGPT export found" in capsys.readouterr().err
 
 
-def test_outputs_flag_default_all(mock_zip_file: Path, tmp_path: Path) -> None:
-    """Test that without --outputs flag, all outputs are selected."""
-    output_dir = tmp_path / "output"
-
-    with patch("convoviz.cli.run_pipeline") as mock_run:
-        result = runner.invoke(
-            app,
-            ["--zip", str(mock_zip_file), "--output", str(output_dir)],
-        )
-
-        assert result.exit_code == 0
-        mock_run.assert_called_once()
-        config = mock_run.call_args[0][0]
-        assert config.outputs == {
-            OutputKind.MARKDOWN,
-            OutputKind.GRAPHS,
-            OutputKind.WORDCLOUDS,
-        }
+def test_not_an_export(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    other = tmp_path / "x.zip"
+    write_export(other, [])
+    (tmp_path / "folder").mkdir()
+    assert _run([str(tmp_path / "folder"), "-o", str(tmp_path / "o")]) == 2
+    assert "doesn't contain ChatGPT conversations" in capsys.readouterr().err
 
 
-def test_timestamp_flag(mock_zip_file: Path, tmp_path: Path) -> None:
-    """Test --timestamp flag sets prepend_timestamp_to_filename."""
-    output_dir = tmp_path / "output"
-
-    with patch("convoviz.cli.run_pipeline") as mock_run:
-        result = runner.invoke(
-            app,
-            [
-                "--zip",
-                str(mock_zip_file),
-                "--output",
-                str(output_dir),
-                "--timestamp",
-            ],
-        )
-
-        assert result.exit_code == 0
-        mock_run.assert_called_once()
-        config = mock_run.call_args[0][0]
-        assert config.prepend_timestamp_to_filename is True
+def test_bad_timezone(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _run([str(_export(tmp_path)), "--timezone", "Nowhere/Land"]) == 2
+    assert "unknown time zone" in capsys.readouterr().err
 
 
-def test_config_init_writes_default(tmp_path: Path) -> None:
-    path = tmp_path / "config.toml"
-    result = runner.invoke(app, ["config", "init", "--path", str(path)])
-    assert result.exit_code == 0
-    assert path.exists()
-    assert "Convoviz default configuration" in path.read_text(encoding="utf-8")
+def test_inspect_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _run(["inspect", str(_export(tmp_path)), "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["shape"]["conversations"] == 1
+    assert "Hello" not in json.dumps(report)
 
 
-def test_config_init_refuses_overwrite(tmp_path: Path) -> None:
-    path = tmp_path / "config.toml"
-    path.write_text("test", encoding="utf-8")
-    result = runner.invoke(app, ["config", "init", "--path", str(path)])
-    assert result.exit_code == 1
+def test_inspect_human(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _run(["inspect", str(_export(tmp_path))]) == 0
+    assert "content_types" in capsys.readouterr().out
+
+
+def test_config_commands(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _run(["config", "path"])
+    assert "not created yet" in capsys.readouterr().out
+    assert _run(["config", "init"]) == 0
+    assert (tmp_path / "cfg/config.toml").exists()
+    assert _run(["config", "init"]) == 1
+    assert _run(["config", "init", "--force"]) == 0
+
+
+def test_old_config_file_explains_the_upgrade(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "cfg/config.toml"
+    config.parent.mkdir()
+    old = 'output_folder = "~/Documents/ChatGPT-Data"\noutputs = ["markdown"]\n[wordcloud]\n'
+    config.write_text(old)
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "out")]) == 2
+    assert "convoviz 0.x config file" in capsys.readouterr().err
+    assert _run(["config", "init", "--force"]) == 0
+    assert (tmp_path / "cfg/config.toml.bak").read_text() == old
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "out")]) == 0

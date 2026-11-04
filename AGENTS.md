@@ -2,48 +2,52 @@
 
 > `CLAUDE.md` and `GEMINI.md` are symlinks to this file.
 
-## Project Context
-**Convoviz** converts ChatGPT export data (JSON/ZIP) into Markdown, visualizations (Word Clouds, Graphs), and metadata. It handles complex, non-linear conversation trees (DAGs) and polymorphic content types.
+**convoviz** turns ChatGPT data exports (ZIP/folder/JSON) into an Obsidian-friendly
+Markdown archive, an index, an Obsidian Bases view, and a self-contained
+`insights.html`. Python ≥ 3.12, `src/` layout, managed with `uv`.
 
-## Operational Commands
-Always use `uv` to run commands in the environment. Favor native CLI tools over manual file modifications whenever possible (e.g., `uv add` instead of editing `pyproject.toml`, or `uv run ruff check --fix` for linting).
+## First, orient yourself
 
-- **Test**: `uv run pytest` (Comprehensive), `uv run pytest -x` (Stop on first fail)
-- **Lint**: `uv run ruff check convoviz tests`
-- **Format**: `uv run ruff format`
-- **Type Check**: `uv run ty check convoviz`
+Read [`docs/dev/HANDOFF.md`](docs/dev/HANDOFF.md) (current state, open work) and
+[`docs/dev/architecture.md`](docs/dev/architecture.md) (how the pipeline fits)
+before changing anything. Skim the modules you'll touch and their tests. For
+anything about the export's shape, read
+[`docs/dev/export-format.md`](docs/dev/export-format.md).
 
-## 🚀 Agent Protocol
+## Commands
 
-### 1. The Mandatory First Step
-**CRITICAL: YOU MUST ALWAYS START BY READING [`docs/dev/HANDOFF.md`](docs/dev/HANDOFF.md) AND CONDUCTING A THOROUGH CODEBASE EXPLORATION.**
+Always go through `uv` (`uv add` for dependencies, never hand-edit versions).
 
-This is **MANDATORY AND NON-NEGOTIABLE**, regardless of how simple, small, or straightforward the task may seem. You **MUST** understand the current project state, recent updates, and local context **BEFORE** making any assumptions, changes, or plans. **DO NOT SKIP THIS STEP.** Only after this initial mandatory orientation should you proceed with task-specific exploration and implementation.
+| | |
+|---|---|
+| Test | `uv run pytest` (`-x` to stop at the first failure) |
+| Lint | `uv run ruff check src tests` (`--fix` for autofixes) |
+| Format | `uv run ruff format` |
+| Types | `uv run ty check src tests` |
+| Golden output | `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py`, then review the diff |
 
-### 2. Operational Rigor
-- **Critical Mindset**: **DO NOT ASSUME** the codebase is perfectly implemented. Be alert for missing or buggy logic, including features that may appear complete but still require refinement or further work.
-- **Ignore Backward Compatibility**: Prioritize codebase health over legacy support. Perform complete overhauls and rewrites where necessary to improve architecture and quality. Only respect backward compatibility if explicitly and specifically requested.
-- **No Hacks**: Always implement robust, proper solutions. Avoid brittle workarounds or "quick fixes" that compromise long-term maintainability or architectural integrity.
-- **Verification**: **ALWAYS** run the full quality gate (tests, type checking, linting, formatting) and **FIX ALL ISSUES** before submitting changes.
-- **Cohesion Pass**: **MANDATORY.** After changes, perform a targeted sanity/consistency sweep to ensure the new behavior is **fully wired** across configs, prompts/CLI, defaults, tests, and docs. **Do not stop** until the change is coherent end-to-end.
-- **Documentation**: **REFLEXIVELY** keep all relevant `.md` files updated. Record all functional and behavioral changes in `docs/dev/CHANGELOG.md`. This is a **CRITICAL REQUIREMENT**.
-- **Changelog Hygiene**: **DO NOT READ** `docs/dev/CHANGELOG.md` during a session. Only open it at the end to append a new entry if needed.
-- **Persistence**: If you leave incomplete work or change the system state, **UPDATE `docs/dev/HANDOFF.md`** with the *current* status and architecture (do not store a history of changes here).
-- **Commits**: **PREFER SMALL, LOGICALLY-SCOPED COMMITS** with tests for behavioral changes.
+Run all four checks and fix everything before calling work done.
 
-## 🗣️ Communication & UX Protocol
+## How to work here
 
-### 1. Directness & Pushing Back
-Once you have conducted your initial codebase exploration, be **ASSERTIVE** and **DIRECT**.
-- **Ask Directly**: If you need the user to run a test, inspect a file, or provide context, **ASK**. **DO NOT IMPLEMENT** complex workarounds to avoid user interaction.
-- **Push Back**: The maintainer values expertise over compliance. If a request is ambiguous, technically flawed, or contradicts established project patterns, **PUSH BACK**. **PROPOSE REFINEMENTS**, better ideas, or even **REJECT AN IDEA** if it’s harmful. A "No, because..." or "Why don't we do X instead?" is much better than a silent, subpar implementation.
-- **Transparency**: **BE TRANSPARENT** about missing context, technical debt, or difficulties encountered.
-
-### 2. User Experience (UX) First
-**PRIORITIZE** the end-user experience of **Convoviz**. **DO NOT COMPROMISE** the application's design, usability, or performance to fit temporary development environment constraints.
-
-## 📚 Documentation Index
-- **[Architecture & Standards](docs/dev/architecture.md)**: Tech stack, core design patterns.
-- **[Data Schema](docs/dev/data-schema.md)**: ChatGPT export structure details.
-- **[Handoff & Roadmap](docs/dev/HANDOFF.md)**: Current state and pending tasks.
-- **[Changelog (Informal)](docs/dev/CHANGELOG.md)**: Historical project updates and changes.
+- **Be critical.** Don't assume existing code is right. The export format
+  drifts, and so do assumptions. Verify against tests and the format doc.
+- **No hacks.** Fix root causes. Backward compatibility is not a goal unless
+  explicitly requested. Prefer a clean rewrite to a patch on a bad design.
+- **Privacy is non-negotiable.** Never commit or download real user exports.
+  Tests use `tests/factory.py`. `inspect` output must never contain content,
+  and `tests/test_census.py` guards that.
+- **Tolerate, then report.** Parsing never raises on odd data. It records the
+  problem in `Diagnostics` so the summary and `inspect` can surface it.
+- **User experience first.** Think about the person opening the notes in
+  Obsidian, and about the person whose re-run must not clobber their edits.
+- **Push back.** If a request is flawed or contradicts these patterns, say so
+  and propose something better. Ask the maintainer when you need information
+  only they have.
+- **Cohesion pass.** After a change, sweep config, CLI flags, README, docs,
+  tests and the golden file so the behavior is wired end to end.
+- **Docs.** Add user-visible changes to `CHANGELOG.md` under "Unreleased", and
+  only append there. When you leave work unfinished or change the system's
+  shape, update `docs/dev/HANDOFF.md`. It describes the current state, not a
+  history.
+- **Commits.** Small and logically scoped, with tests for behavior changes.

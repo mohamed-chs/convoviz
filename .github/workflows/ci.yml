@@ -4,148 +4,58 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  lint:
-    name: Lint
+  check:
+    name: Lint & types
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run ruff check
-        run: uv run ruff check convoviz tests
-
-      - name: Run ruff format check
-        run: uv run ruff format --check convoviz tests
-
-  type-check:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run ty
-        run: uv run ty check convoviz
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --locked
+      - run: uv run ruff format --check
+      - run: uv run ruff check src tests
+      - run: uv run ty check src tests
 
   test:
-    name: Test (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        os: [ubuntu-latest]
+        python: ["3.12", "3.13", "3.14", "3.15"]
+        include:
+          # File names, paths and time zones behave differently elsewhere.
+          - { os: windows-latest, python: "3.12" }
+          - { os: windows-latest, python: "3.15" }
+          - { os: macos-latest, python: "3.15" }
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
+      - run: uv run pytest
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --group dev
-
-      - name: Run tests
-        run: uv run pytest -v --tb=short
-
-  install-check:
-    name: Install Check
+  package:
+    name: Build & smoke test the wheel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Build package
-        run: uv build
-
-      - name: Install from wheel
+      - uses: astral-sh/setup-uv@v7
+      - run: uv build
+      - name: Install the wheel in a clean environment and run it
         run: |
-          uv venv test-env
-          source test-env/bin/activate
-          uv pip install dist/*.whl
-
-      - name: Verify CLI works
-        run: |
-          source test-env/bin/activate
-          convoviz --help
-
-      - name: Verify package imports
-        run: |
-          source test-env/bin/activate
-          python -c "from convoviz import ConversationCollection, run_pipeline, get_default_config; print('Imports OK')"
-
-  install-check-viz:
-    name: Install Check (viz)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Build package
-        run: uv build
-
-      - name: Install from wheel with [viz]
-        run: |
-          uv venv test-env-viz
-          source test-env-viz/bin/activate
-          WHEEL=$(ls dist/*.whl)
-          uv pip install "${WHEEL}[viz]"
-
-      - name: Verify viz components
-        run: |
-          source test-env-viz/bin/activate
-          convoviz --help
-          python -c "import wordcloud; import nltk; from convoviz.analysis.wordcloud import generate_wordcloud; print('Viz components OK')"
-
-  # Final gate that requires all jobs to pass
-  ci-success:
-    name: CI Success
-    needs: [lint, type-check, test, install-check, install-check-viz]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check all jobs passed
-        run: |
-          if [[ "${{ needs.lint.result }}" != "success" ]] || \
-             [[ "${{ needs.type-check.result }}" != "success" ]] || \
-             [[ "${{ needs.test.result }}" != "success" ]] || \
-             [[ "${{ needs.install-check.result }}" != "success" ]] || \
-             [[ "${{ needs.install-check-viz.result }}" != "success" ]]; then
-            echo "One or more jobs failed"
-            exit 1
-          fi
-          echo "All CI checks passed!"
+          uv venv /tmp/env
+          uv pip install --python /tmp/env dist/*.whl
+          /tmp/env/bin/convoviz --version
+          /tmp/env/bin/convoviz --help
+          /tmp/env/bin/python -m convoviz --help >/dev/null

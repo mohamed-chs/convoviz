@@ -1,125 +1,97 @@
-# Handoff Document for Convoviz
+# Handoff
 
-This document provides context for continuing work on the convoviz project.
+Current state of the project: what exists, what's known to be missing, and
+where to go next. Keep this describing the present, not the history (that is
+`CHANGELOG.md` and git).
 
-## System Architecture
+## State (v1.0.0, November 2026)
 
-### Module Structure
+A ground-up rewrite (branch `overhaul`) for the 2026 export format. The full
+pipeline is in place and tested on synthetic exports: reading (all known
+packagings), parsing, Markdown rendering, incremental writing, attachments,
+the index/Bases files, insights (charts and word clouds), `inspect`, config
+and CLI. The quality gate (ruff, ty, pytest) is green on Python 3.12 and 3.15,
+and the fuzz tests pass the `long` Hypothesis profile.
 
-```
-convoviz/
-├── __init__.py          # Public API exports
-├── __main__.py          # python -m convoviz entry
-├── cli.py               # Typer CLI
-├── config.py            # Pydantic configuration models
-├── exceptions.py        # Custom exception hierarchy
-├── interactive.py       # Questionary prompts
-├── message_logic.py     # Message extraction/visibility utilities
-├── pipeline.py          # Main processing pipeline
-├── utils.py             # Utility functions
-├── models/              # Pure data models (Pydantic)
-│   ├── message.py       # Message, MessageAuthor, Content
-│   ├── node.py          # Node (tree structure)
-│   ├── conversation.py  # Conversation logic
-│   └── collection.py    # ConversationCollection
-├── renderers/           # Markdown & YAML templates
-│   ├── markdown.py      # Markdown generation
-│   └── yaml.py          # YAML frontmatter
-├── io/                  # File I/O
-│   ├── __init__.py      # I/O package entry
-│   ├── assets.py        # Attachment handling
-│   ├── loaders.py       # ZIP/JSON loaders
-│   ├── writers.py       # Markdown/JSON writers
-│   └── canvas.py        # Canvas document extraction
-├── analysis/            # Visualizations
-    ├── graphs/          # Graph generation (modular)
-    │   ├── common.py    # Shared utilities
-    │   ├── timeseries.py # Activity charts
-    │   ├── distributions.py # Histograms
-    │   ├── heatmaps.py  # Heatmap charts
-    │   └── dashboard.py # Summary dashboard
-    └── wordcloud.py     # Word clouds
-└── utils.py             # Shared helpers
-```
+Performance: a synthetic 6,000-conversation, 344 MB export takes about 27 s and
+600 MB of memory (parsing, rendering and stats in roughly equal parts). Re-runs
+take about as long, since every conversation is rendered to compare hashes.
+Skipping unchanged conversations by fingerprinting the raw JSON would make
+re-runs much faster if that ever matters.
 
-### Important Patterns
+## Biggest risk
 
-#### Configuration Flow
-```
-get_default_config() → ConvovizConfig
-    └── Loaded from bundled TOML defaults
-    └── User config (OS-native path) merges over defaults
-    └── Runtime defaults applied via apply_runtime_defaults()
-        (auto input fallback + default wordcloud font)
-    └── CLI flags override merged config
-    └── Can be modified directly or via interactive prompts
-    └── Passed to run_pipeline(config)
-```
+**No real 2026 export has been run through this code.** Everything is built
+from public evidence: other projects' PRs and issues, community reports, and
+convoviz's own issue history (see `export-format.md`). Expect surprises in the
+first reports from users. The design aims to make them visible
+(Diagnostics, the summary, `inspect --json`) rather than fatal. Triage
+`inspect` reports first, then make the fix and add a synthetic test.
 
-#### Data Flow
-```
-Input (ZIP/Dir/JSON) → loaders.py → ConversationCollection
-    └── Accepts single conversations.json or split conversations-NNN.json files
-    └── Split files are loaded and merged via ConversationCollection.update()
-    └── Contains list of Conversation objects
-    └── Sets source_path for asset resolution
-```
+## Known gaps / next steps
 
-#### Rendering Flow
-```
-Conversation + Config → render_conversation() → Markdown string
-    └── Uses render_yaml_header() for frontmatter
-    └── Uses render_node() for each message
-    └── Citation placeholders become per-message footnote refs + footnote block
-    └── Uses asset_resolver callback to copy/link images
-```
+- **Unconfirmed format details.** One source reports `library-files.json`
+  (hyphen) and an `export_manifest.json` with an `export_files: [{path,
+  size_bytes}]` inventory instead of `logical_files`. Both are accepted. Another
+  claims mid-2026 exports no longer contain `tool`/`system` messages, which
+  would only mean less to hide.
+- **Library-only files.** Files no message shows go to the message named by
+  `origination_message_id`, or else to the end of the conversation named by
+  `origination_thread_id`. Nexus AI Chat Importer, which tests against real
+  exports, confirms these fields. Entries without a payload and `writing_block`
+  entries are skipped. Unlike Nexus, convoviz doesn't invent a message when the
+  originating one is missing. Check `library_files_added` and
+  `library_files_without_payload` in `inspect --json`.
+- **Reference implementations.** The best-maintained parsers are
+  [pionxzh/chatgpt-exporter](https://github.com/pionxzh/chatgpt-exporter) (live
+  API, citations, widgets) and
+  [Superkikim/nexus-ai-chat-importer](https://github.com/Superkikim/nexus-ai-chat-importer)
+  (2026 ZIP layout, library, directives, multipart). When the format drifts,
+  diff their recent commits first: they see real exports.
+- **Deep research / agent mode.** `research_kickoff_tool` and other agent
+  plumbing is hidden. Whether the final report always arrives as a normal
+  assistant message is unverified.
+- **Message `channel`.** 2026 reports mention `channel: "commentary"` vs
+  `"final"` on assistant messages. Both are rendered as normal text for now.
+  `inspect` counts `role:channel` pairs, so a report will show whether
+  commentary should be folded like reasoning.
+- **Insights cover the current export only.** Conversations kept in the
+  archive from older exports but missing from the new one aren't counted.
+- **Canvas.** Every edit renders the whole document again (in an open
+  `<details>`). For heavily edited documents, showing only the final version
+  per turn might read better. The final version on the active branch is also
+  saved under `canvas/` (`render.canvas_files`, named by document title plus
+  the conversation id so names are stable). Files of conversations whose
+  document was renamed aren't cleaned up; titles of Canvas documents don't
+  change in practice.
+- **Custom instructions** go to `Custom instructions.md` (one section per
+  distinct version, newest first), written by the Writer as a managed file.
+  Memory snapshots (`model_editable_context`, reportedly `model_set_context`
+  text) are hidden and not captured; a "Memories" page could follow the same
+  pattern once a real export confirms the shape.
+- **Project names.** Only `project_id` is known. If an export ever carries
+  project names, group notes by project.
+- **Word clouds** drop filler words in English, French, Spanish, Portuguese,
+  German, Italian and Arabic (`stopwords.py`, plus the user's `ignored_words`).
+  Other languages work, but their filler words may show up. The layout runs in the browser (`_CLOUD_JS` in
+  `insights.py`, spiral placement on measured text boxes) and isn't covered by
+  the Python tests. Check it in a browser, at phone and desktop widths, after
+  changing it.
+- **Changing `--timezone`** can change dates in file names, so notes move.
+  That's handled (as moves), but it isn't obvious to users.
+- **Other providers.** `model.py` is provider-neutral. A Claude export adapter
+  (`convoviz/claude/`) would be a self-contained addition. Research notes on
+  other providers' formats are not in the repo yet; ask the maintainer.
 
-#### Robustness Guardrails
-```
-Message extraction:
-    └── image-only messages return empty text (not exceptions)
-    └── Canvas payloads require string name/content; malformed type falls back safely
+## Conventions worth knowing
 
-Conversation traversal:
-    └── active-branch traversal is cycle-safe (guards malformed parent graphs)
-
-Archive extraction:
-    └── ZIP extraction rejects traversal paths and symlink members
-    └── files are extracted through explicit checked paths (no blind extractall)
-```
-
-## Key Files to Know
-
-| File | Purpose |
-|------|---------|
-| `convoviz/config.py` | Configuration models + default loaders (`get_default_graph_config`, `apply_runtime_defaults`) |
-| `convoviz/assets/default_config.toml` | Bundled TOML defaults (source of truth for defaults) |
-| `convoviz/pipeline.py` | Main processing flow - start here to understand the app |
-| `convoviz/io/assets.py`| Logic for finding and copying image assets |
-| `convoviz/message_logic.py` | Message extraction/visibility logic (kept out of models) |
-| `AGENTS.md` | Context and operational guidelines for AI agents |
-
-## Running the Project
-
-```bash
-# Install dependencies
-uv sync
-
-# Run CLI
-uv run convoviz --help
-uv run convoviz --input export.zip --output ./output
-uv run convoviz --input ./extracted_export_dir --output ./output
-
-# Full quality check (Lint + Type check + Format + Tests)
-uv run ruff check convoviz tests && uv run ty check convoviz && uv run ruff format && uv run pytest
-```
-
-## Meta-Notes
-- This is a working document for brainstorming and info-sharing; it is not a directive.
-- It's the entry point for working/continuing work on the project.
-- Try to keep it updated; complete rewrites are within the realm of possibility.
-- **A GOOD HABIT TO HAVE (I'm talking to you, AI coding agent) is to write other such .md files to persist plans/context in this session and the next.** Write them in the root project directory, or in other places if you prefer (like ./dev/), depending on the context. Take the liberty to do it anytime, it's very much encouraged and recommended; you don't even have to ask before you do it, or notify the user at all for that matter.
-- **KEEP `HANDOFF.md` FOCUSED ON CURRENT STATE.** Use `CHANGELOG.md` for recording recent updates. This file should always reflect the *now*.
-- **Changelog Hygiene**: Do not read `docs/dev/CHANGELOG.md` during active work; open it only at the end to append a new entry if needed.
-
-Codebase updates are recorded in [**`docs/dev/CHANGELOG.md`**](CHANGELOG.md).
+- `Writer` decides "edited by the user" by comparing a note's current hash
+  with the hash recorded in `.convoviz/state.json`. A recorded note missing
+  from its path is searched for by its `conversation_id` property (moved →
+  `pinned`, not found → `deleted` tombstone). Managed files (`index.md`,
+  `Conversations.base`, `insights.html`) have hashes under `files`.
+- `tests/golden/rich.md` is the reference rendering. Any output change shows
+  up there.
+- Citation markers inside `TextBlock.text` are encoded as `\x1e0,2\x1f`
+  (indices into `TextBlock.sources`). Use `model.strip_citations` for plain
+  text.

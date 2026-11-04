@@ -1,157 +1,50 @@
-# Contributing to Convoviz
+# Contributing
 
-Thanks for your interest in contributing! This guide covers the essentials.
+Thanks for helping! Bug reports with `convoviz inspect --json` output are the
+single most useful contribution: the export format changes constantly, and that
+report shows what changed without exposing anyone's data.
 
----
+## Setup
 
-## Reporting Bugs
-
-Before reporting, search existing issues and update to the latest version.
-
-Include:
-- **Convoviz version**: `convoviz --version`
-- **Python version**: `python --version`  
-- **OS**: Windows, macOS, or Linux
-- **Steps to reproduce**
-- **Error messages** (full traceback if available)
-
-👉 **[Open a Bug Report](https://github.com/mohamed-chs/convoviz/issues/new?template=bug_report.md)**
-
----
-
-## Suggesting Features
-
-Check existing issues first. Describe the problem you're solving and your proposed solution.
-
-👉 **[Open a Feature Request](https://github.com/mohamed-chs/convoviz/issues/new?template=feature_request.md)**
-
----
-
-## Looking for Ideas?
-
-Contributions are particularly welcome in the following areas:
-
-### 📊 Enriching Graph Visualizations
-
-The current graph visualizations (`convoviz/analysis/graphs/`) are kinda lacking. Contributions that make them more meaningful, insightful, and visually appealing are highly appreciated.
-
----
-
-## Development Setup
-
-**Prerequisites**: Python 3.12+, [uv](https://github.com/astral-sh/uv)
-
-```bash
-# Fork and clone
-git clone https://github.com/YOUR_USERNAME/convoviz.git
-cd convoviz
-
-# Install dependencies
+```sh
+git clone https://github.com/mohamed-chs/convoviz && cd convoviz
 uv sync
-
-# Verify
 uv run convoviz --help
+```
+
+## Before you push
+
+```sh
+uv run ruff format
+uv run ruff check src tests
+uv run ty check src tests
 uv run pytest
 ```
 
----
+CI runs the same checks, with tests on Python 3.12–3.15 (Linux) plus Windows and
+macOS.
 
-## Code Quality
+## Ground rules
 
-Run the full quality gate before submitting:
+- **Never commit real export data**, including "anonymized" excerpts. Build
+  what you need with `tests/factory.py` (`ConversationBuilder`, `write_export`).
+- A new export quirk means a test reproducing it (from a synthetic export), a
+  change in `chatgpt/`, and a line in `docs/dev/export-format.md` with a source.
+- `tests/test_fuzz.py` feeds random export-shaped JSON through parsing,
+  rendering and statistics. A parser change deserves a longer hunt:
+  `HYPOTHESIS_PROFILE=long uv run pytest tests/test_fuzz.py tests/test_markdown.py`.
+- Changes to the Markdown output show up in `tests/golden/rich.md`. Regenerate
+  it with `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py` and check the
+  diff reads well.
+- Record user-visible changes under "Unreleased" in `CHANGELOG.md`.
+- Keep dependencies few. The charts are plain SVG on purpose.
 
-```bash
-uv run ruff check convoviz tests   # Lint
-uv run ty check convoviz            # Type check
-uv run pytest                       # Tests
-```
+How the pieces fit is in [docs/dev/architecture.md](docs/dev/architecture.md).
 
-Auto-fix lint issues: `uv run ruff check --fix convoviz tests`
+## Releasing
 
----
-
-## Testing
-
-```bash
-uv run pytest          # All tests
-uv run pytest -x       # Stop on first failure
-uv run pytest -v       # Verbose
-```
-
-When adding features, include tests for happy path, error cases, and edge cases.
-
-### Regression Testing (Markdown Output)
-
-While automated tests cover core logic, it's often helpful to manually verify the final Markdown output, especially when refactoring renderers or data models. 
-
-**Finding Test Candidates**: If you need to find specific edge cases (like DALL-E images, reasoning chains, or complex branching) within your own export to test against, follow the [ChatGPT Export Discovery Guide](docs/dev/chatgpt-export-discovery.md).
-
-#### 1. Generate Baseline and Current Outputs
-
-Create a temporary directory to store and compare the results:
-
-```bash
-mkdir -p ./test-output
-
-# Generate the baseline using the latest released version (via uvx)
-rm -rf ./test-output/out1
-uvx convoviz -z path/to/export.zip -o ./test-output/out1 --outputs markdown
-
-# Generate the output from your local development environment
-rm -rf ./test-output/out2
-uv run convoviz -z path/to/export.zip -o ./test-output/out2 --outputs markdown
-```
-
-#### 2. Compare the Results
-
-Use `git diff` to compare the two directories. The `--no-index` flag allows you to compare two paths on the filesystem even if they aren't part of a git repository.
-
-```bash
-# View a summary of which files changed and the extent of the changes
-git diff --no-index --stat ./test-output/out1 ./test-output/out2
-
-# Review the full diff of all changes
-git diff --no-index ./test-output/out1 ./test-output/out2
-```
-
-#### 3. Targeted Testing
-
-If you are investigating a specific issue, you may want to focus on a handful of noteworthy conversations. List the relative paths to these files (e.g., `Markdown/2023/07-July/My Chat.md`) in a text file named `conversation_list.txt`, then run a loop to diff them individually:
-
-```bash
-while read p; do
-    git diff --no-index "./test-output/out1/$p" "./test-output/out2/$p"
-done < conversation_list.txt
-```
-
-> [!TIP]
-> For a much more readable and colorful diff experience, consider using [delta](https://github.com/dandavison/delta).
-
----
-
-## Submitting Changes
-
-1. Create a branch: `git checkout -b feature/your-feature`
-2. Make focused commits
-3. Run the quality gate (must pass)
-4. Push and open a PR
-
----
-
-## Architecture Quick Reference
-
-```
-convoviz/
-├── cli.py          # CLI entrypoint
-├── config.py       # Configuration models
-├── pipeline.py     # Main processing flow
-├── models/         # Pydantic data models (no I/O)
-├── renderers/      # Markdown/YAML output (no disk writes)
-├── io/             # All file operations
-└── analysis/       # Graphs and word clouds
-```
-
-Key files to understand first:
-- `convoviz/pipeline.py` — main processing flow
-- `convoviz/config.py` — configuration options
-- `docs/dev/HANDOFF.md` — full project context
+1. Move the "Unreleased" changelog entries under a new version heading.
+2. `uv version --bump minor` (or `patch`/`major`), then commit.
+3. Tag `vX.Y.Z` and push the tag. The release workflow tests, builds, publishes
+   to PyPI through trusted publishing, and creates the GitHub release from the
+   changelog section.
