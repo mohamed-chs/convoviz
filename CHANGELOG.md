@@ -5,6 +5,27 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- Interactive replies are written from their Markdown version instead of
+  widget code.
+- Charts in replies become tables, and image search results become links to
+  their pages.
+- Shopping carousels list their products, with prices and shops.
+- A reply's "Sources" list keeps the sources it didn't cite inline.
+- Generated images and documents that are only in the export's file library
+  appear in the message that produced them, when the export kept it.
+
+### Changed
+
+- Progress notes written while the model thinks are folded into its
+  reasoning.
+- Library files with no payload in the export are no longer listed as missing.
+
+### Fixed
+
+- AVIF images and QuickTime videos stored as `.dat` get the right extension.
+
 ## 1.0.0 — 2026-11
 
 A complete rewrite for ChatGPT's 2026 export format.

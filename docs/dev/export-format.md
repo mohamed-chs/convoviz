@@ -83,6 +83,35 @@ up in `metadata.search_result_groups[].entries[].ref_id`. Older messages use
 Leftover `citeturn0search1` residue is removed, but the word "cite" is never
 stripped. `utm_source=chatgpt.com` is removed from links.
 
+Other reference types (from [chatgpt-exporter](https://github.com/pionxzh/chatgpt-exporter)
+and Nexus, med confidence):
+
+- `client_defined_widget` with `data.widget_type` `charts_widget_v2` holds a
+  chart (`xKey`, `series[]`, `data[]`, `formattedData[]`, `meta.description`).
+  convoviz writes a table. `code_block` widgets already have their Markdown in
+  the text.
+- `image_group`/`image_v2` carry `images[].image_result` (`title`, `url`,
+  `content_url`). convoviz links the pages and never embeds remote images.
+- `products{"selections": [["turn0product1", "Name"], …]}` markers mark a
+  shopping carousel. The reference's `products[]` has `cite`, `title`, `price`,
+  `featured_tag` and `merchants`, and the two match on the `productN` suffix.
+  convoviz writes a list.
+- Product references without `items` keep their links in `safe_urls`.
+- `sources_footnote` is the "Sources" list under a reply. Sources that weren't
+  cited inline are listed after the reply.
+
+## Assistant messages that aren't the answer (med)
+
+- `metadata.is_thinking_preamble_message: true`: a progress note shown in the
+  thinking panel. Rendered with the reasoning.
+- `metadata.model_dil_v2.fallbackMarkdown`: interactive replies keep widget
+  markup (`<box>`, `DIL.useState(…)`) in `parts` and their Markdown version
+  here, with `<escape>x</escape>` around literal characters. The Markdown is
+  used.
+- `metadata.reasoning_title` names reasoning steps, and `finished_duration_sec`
+  sits on `reasoning_recap`. Neither is used: the recap text already says
+  "Thought for 12s".
+
 ## Attachments
 
 | Fact | Conf. | convoviz |
@@ -91,7 +120,8 @@ stripped. `utm_source=chatgpt.com` is removed from links.
 | Files sit at the ZIP root as `file_<hex>-<suffix>.dat` / `file-<id>-<name>.dat` with no real extension. Older exports used `dalle-generations/` and `user-<id>/` folders. | high | Indexed by file-id prefix. Root files win over folder copies. |
 | `conversation_asset_file_names.json` maps stored name → original name, a `dalle-generations/<uuid>.webp` path, a bare UUID, or `<conv>/audio/<uuid>.wav`. | high | Meaningful names are kept. Generated ones contribute only their extension. |
 | The library file is also reported as `library-files.json` ([forum, Aug 26](https://community.openai.com/t/missing-library-files-after-chatgpt-data-export/1392791)). | low | Top-level sidecar files are matched ignoring case and `-`/`_`. |
-| `library_files.json` lists `file_id`, `file_name`, `mime_type`, `library_artifact_type`, `origination_thread_id`, `image_gen_generation_id`, `trashed_at`/`deleted_at`. | med (fields), low (`origination_thread_id` = conversation id) | Names and MIME types are used. Entries no message shows are added to the conversation named by `origination_thread_id`. Trashed or deleted entries are ignored. |
+| `library_files.json` lists `file_id`, `file_name`, `mime_type`, `file_size_bytes`, `library_artifact_type` (`null` for uploads, `report` for generated documents, `writing_block` for pasted Canvas text, `image`), `library_file_category`, `origination_message_id`, `origination_thread_id`, `image_gen_generation_id`, `created_at`, `trashed_at`/`deleted_at` ([Nexus format notes](https://github.com/Superkikim/nexus-ai-chat-importer/blob/master/docs/architecture/providers/chatgpt-export-format.md)). | med | Names and MIME types are used. A file no message shows goes to the message named by `origination_message_id`, or else to the end of the conversation named by `origination_thread_id`, oldest first. Entries without a payload, `writing_block` entries (already in the message's attachments) and trashed or deleted ones are ignored. |
+| Since August 2026, generated images are often referenced **only** from the library, and the message that showed one is sometimes missing from the conversation. | med | See above: these images land in the message or at the end of the note. |
 | Uploaded files also appear in the user message's `metadata.attachments[]` (`id`, `name`, `mime_type`). | high | Shown as links (images inline). |
 | Generated images and library files are **sometimes missing** from exports (an OpenAI-side problem in mid-2026; 97 missing files were reported in Aug–Oct 2026). | med | A placeholder in the note, counted in the summary. |
 | Voice: `real_time_user_audio_video_asset_pointer` wraps audio/video pointers, and transcripts are `audio_transcription` parts. | med | Transcript as text, audio as a link. |

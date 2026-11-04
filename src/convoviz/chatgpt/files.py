@@ -201,12 +201,15 @@ class AssetInfo:
 
 @dataclass(frozen=True, slots=True)
 class LibraryFile:
-    """An entry of ``library_files.json`` that names the conversation it came from."""
+    """An entry of ``library_files.json`` that names where it came from."""
 
     file_id: str
-    conversation_id: str
+    conversation_id: str | None
+    message_id: str | None
     name: str | None
     mime: str | None
+    artifact_type: str | None = None
+    created: str = ""  # ISO 8601 or epoch digits, only used for ordering
 
 
 @dataclass(slots=True)
@@ -288,9 +291,30 @@ class AssetIndex:
                 else None
             )
             mime = raw_mime if isinstance(raw_mime, str) and raw_mime else None
-            origin = entry.get("origination_thread_id")
-            if isinstance(origin, str) and origin:
-                self.library.append(LibraryFile(file_id, origin, name, mime))
+            thread, message = (
+                _nonempty(entry.get("origination_thread_id")),
+                _nonempty(entry.get("origination_message_id")),
+            )
+            if thread or message:
+                created = next(
+                    (
+                        str(value)
+                        for key in ("created_at", "record_creation_time", "version_created_at")
+                        if isinstance(value := entry.get(key), str | int | float) and value
+                    ),
+                    "",
+                )
+                self.library.append(
+                    LibraryFile(
+                        file_id,
+                        thread,
+                        message,
+                        name,
+                        mime,
+                        _nonempty(entry.get("library_artifact_type")),
+                        created,
+                    )
+                )
             info = self.by_id.get(file_id)
             if info is None:
                 continue
@@ -321,6 +345,10 @@ class AssetIndex:
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\.\w+)?$", re.IGNORECASE
 )
+
+
+def _nonempty(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _looks_generated_name(name: str) -> bool:

@@ -10,6 +10,7 @@ from factory import PNG_1PX, ConversationBuilder, write_export
 
 from convoviz.chatgpt import load_export
 from convoviz.diagnostics import Diagnostics
+from convoviz.model import AttachmentBlock
 from convoviz.source import ExportSource
 
 if TYPE_CHECKING:
@@ -164,27 +165,39 @@ def test_library_only_files_are_attached_to_their_conversation(tmp_path: Path, l
             ],
         },
     )
-    builder.assistant("Here it is.")
+    answer = builder.assistant("Here it is.")
+    image = {"origination_thread_id": conv_id, "mime_type": "image/png"}
     library = [
-        {"file_id": "file_0000shown", "origination_thread_id": conv_id, "mime_type": "image/png"},
-        {"file_id": "file_0000extra", "origination_thread_id": conv_id, "mime_type": "image/png"},
+        {"file_id": "file_0000shown", **image},
+        {"file_id": "file_0000extra", **image, "created_at": "2026-08-02T00:00:00Z"},
+        {"file_id": "file_0000early", **image, "created_at": "2026-08-01T00:00:00Z"},
+        {"file_id": "file_0000msg", **image, "origination_message_id": answer},
         {"file_id": "file_0000gone", "origination_thread_id": conv_id, "file_name": "Plan.pdf"},
         {"file_id": "file_0000trash", "origination_thread_id": conv_id, "trashed_at": 1},
+        {"file_id": "file_0000paste", **image, "library_artifact_type": "writing_block"},
         {"file_id": "file_0000other", "origination_thread_id": "someone-else"},
     ]
+    stored = ("shown", "extra", "early", "msg", "paste", "other")
     path = write_export(
         tmp_path / "e.zip",
         [builder.build()],
-        files={"file_0000shown-a.dat": PNG_1PX, "file_0000extra-b.dat": PNG_1PX},
+        files={f"file_0000{name}-a.dat": PNG_1PX for name in stored},
         extra_json={"library_files.json": library},
     )
     export, diagnostics = load(path)
     conversation = export.conversations[0]
-    assert [(a.file_id, a.kind, a.name) for a in conversation.files] == [
-        ("file_0000extra", "image", None),
-        ("file_0000gone", "file", "Plan.pdf"),
+    # Oldest first; no payload, trashed, redundant and foreign entries are left out.
+    assert [(a.file_id, a.kind) for a in conversation.files] == [
+        ("file_0000early", "image"),
+        ("file_0000extra", "image"),
     ]
-    assert diagnostics.counters["library_files_added"] == 2
+    host = conversation.nodes[answer].message
+    assert host is not None
+    assert [b.attachment.file_id for b in host.blocks if isinstance(b, AttachmentBlock)] == [
+        "file_0000msg"
+    ]
+    assert diagnostics.counters["library_files_added"] == 3
+    assert diagnostics.counters["library_files_without_payload"] == 1
 
     def resolve(attachment):
         return "x.png" if export.assets.resolve(attachment.file_id) else None
@@ -192,4 +205,4 @@ def test_library_only_files_are_attached_to_their_conversation(tmp_path: Path, l
     note = render_conversation(conversation, RenderOptions(), resolve).text
     files_section = note.split("## Files from this conversation", 1)[1]
     assert files_section.strip().splitlines()[0] == "![](x.png)"
-    assert "*[Plan.pdf not included in the export]*" in files_section
+    assert "![](x.png)" in note.split("Here it is.", 1)[1].split("## Files", 1)[0]
