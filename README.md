@@ -6,11 +6,11 @@
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/convoviz/"><img src="https://img.shields.io/pypi/v/convoviz?label=PyPI&logo=pypi&logoColor=white&color=2a78d6&labelColor=24292f" alt="PyPI version"></a>
-  <a href="https://pypi.org/project/convoviz/"><img src="https://img.shields.io/badge/Python-3.12+-2a78d6?logo=python&logoColor=white&labelColor=24292f" alt="Python 3.12+"></a>
-  <a href="https://pepy.tech/projects/convoviz"><img src="https://img.shields.io/pepy/dt/convoviz?label=downloads&color=2a78d6&labelColor=24292f" alt="Downloads"></a>
-  <a href="https://github.com/mohamed-chs/convoviz/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mohamed-chs/convoviz/ci.yml?branch=main&label=tests&logo=githubactions&logoColor=white&labelColor=24292f" alt="Tests"></a>
-  <a href="https://obsidian.md"><img src="https://img.shields.io/badge/made_for-Obsidian-7c3aed?logo=obsidian&logoColor=white&labelColor=24292f" alt="Made for Obsidian"></a>
+  <a href="https://pypi.org/project/convoviz/"><img src="https://img.shields.io/pypi/v/convoviz?label=PyPI&logo=pypi&logoColor=white&color=2a78d6&labelColor=24292f" height="28" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/convoviz/"><img src="https://img.shields.io/badge/Python-3.12+-2a78d6?logo=python&logoColor=white&labelColor=24292f" height="28" alt="Python 3.12+"></a>
+  <a href="https://pepy.tech/projects/convoviz"><img src="https://img.shields.io/pepy/dt/convoviz?label=downloads&color=2a78d6&labelColor=24292f" height="28" alt="Downloads"></a>
+  <a href="https://github.com/mohamed-chs/convoviz/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mohamed-chs/convoviz/ci.yml?branch=main&label=tests&logo=githubactions&logoColor=white&labelColor=24292f" height="28" alt="Tests"></a>
+  <a href="https://obsidian.md"><img src="https://img.shields.io/badge/made_for-Obsidian-7c3aed?logo=obsidian&logoColor=white&labelColor=24292f" height="28" alt="Made for Obsidian"></a>
 </p>
 
 <p align="center">
