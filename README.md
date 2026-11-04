@@ -32,14 +32,12 @@
 
 ## Why convoviz
 
-ChatGPT lets you download all your conversations, but what arrives is a ZIP of raw JSON: hard to read, and harder to search. convoviz turns it into something you can keep:
+ChatGPT lets you download all your conversations, but what arrives is a ZIP of raw JSON that's hard to read or search. convoviz turns it into two things:
 
-- **One readable note per conversation.** Each note has your prompts, the answers, and properties for the dates, models and message count. Sources become footnotes. Reasoning, code and tool output are folded away, and edited or regenerated replies are kept too.
-- **Made for [Obsidian](https://obsidian.md), and readable anywhere.** The notes are plain Markdown, so they also open in VS Code, on GitHub, in other Markdown apps, or as text. In Obsidian, a ready-made table lists every conversation.
-- **Charts of your own habits.** When you ask, how often, which models, and word clouds of what you asked about, year by year.
-- **Safe to run again.** Request a new export next month and only what changed is rewritten. Notes you edited, moved or deleted are left as you left them.
-- **Private.** Everything runs on your computer. Nothing is uploaded, and there's no account or API key.
-- **Up to date with ChatGPT's 2026 export format.** That includes split exports, `.dat` attachments and multi-part downloads.
+- a folder of Markdown notes, one per conversation, with your prompts, the answers, and properties for the dates, models and message count. Sources become footnotes, reasoning and tool output are folded away, and edited or regenerated replies are kept. The notes are made for [Obsidian](https://obsidian.md), where a table view lists every conversation, and they also open in VS Code, on GitHub or in any other Markdown app;
+- a page of charts: when you ask, how often, which models answered, and word clouds of what you asked about, year by year.
+
+Run it again on next month's export and only what changed is rewritten. Notes you edited, moved or deleted stay as you left them. Everything runs on your computer, with no account or API key, and nothing is uploaded. It reads ChatGPT's 2026 export format, including split exports, `.dat` attachments and multi-part downloads.
 
 ## Quick start
 
@@ -64,9 +62,9 @@ This installs [uv](https://docs.astral.sh/uv/) if you don't have it, which takes
 <details>
 <summary>New to the terminal?</summary>
 
-- **macOS:** press <kbd>⌘ Space</kbd>, type *Terminal*, press <kbd>Enter</kbd>.
-- **Windows:** press the <kbd>Windows</kbd> key, type *PowerShell*, press <kbd>Enter</kbd>.
-- **Linux:** press <kbd>Ctrl Alt T</kbd>, or find *Terminal* in your apps.
+- On macOS, press <kbd>⌘ Space</kbd>, type *Terminal*, press <kbd>Enter</kbd>.
+- On Windows, press the <kbd>Windows</kbd> key, type *PowerShell*, press <kbd>Enter</kbd>.
+- On Linux, press <kbd>Ctrl Alt T</kbd>, or find *Terminal* in your apps.
 
 Paste the line above for your system and press <kbd>Enter</kbd>. When it's done, close the window and open a new one, so it finds the `convoviz` command.
 </details>
@@ -148,9 +146,9 @@ April is a lovely time to go: it's cherry blossom season, so plan around the cro
 [^1]: [Fushimi Inari Taisha](https://inari.example/en/) — inari.example
 ```
 
-**[See the whole note, rendered →](https://github.com/mohamed-chs/convoviz/blob/main/docs/example/Planning%20a%20trip%20to%20Kyoto.md)**
+[See the whole note as GitHub renders it.](https://github.com/mohamed-chs/convoviz/blob/main/docs/example/Planning%20a%20trip%20to%20Kyoto.md)
 
-Beyond plain text, convoviz handles what ChatGPT puts in its answers. Images are copied with their real file type. Canvas documents keep their edits. Charts become tables and shopping picks become lists. Drafted emails and posts become labelled sections. Anything it doesn't recognize yet is kept as plain text and mentioned in the summary, never dropped silently.
+Images are copied with their real file type. Canvas documents keep their edits. Charts become tables and shopping picks become lists. Drafted emails and posts become labelled sections. Anything convoviz doesn't recognize yet is kept as plain text and listed in the summary.
 
 ## Your ChatGPT, in charts
 
@@ -160,7 +158,7 @@ Beyond plain text, convoviz handles what ChatGPT puts in its answers. Images are
 - when in the week you ask, hour by hour;
 - prompts per month, and which models answered;
 - the features you used (search, reasoning, code, images, Canvas, voice) and how long conversations run;
-- **word clouds** of what you asked about: all years, and each year on its own, showing what set it apart. Each one can be saved as an image.
+- word clouds of what you asked about: all years, and each year on its own, showing what set it apart. Each one can be saved as an image.
 
 <p align="center">
   <picture>
@@ -188,9 +186,9 @@ Request a new export whenever you like, and run convoviz again on the same folde
 
 - new and changed conversations are written, and the rest are left alone;
 - a conversation renamed in ChatGPT has its note renamed too;
-- **notes you've edited are kept as they are.** If the conversation has newer messages, the summary tells you (`--force` replaces your version);
-- **notes you've moved or renamed**, into your own folders for example, are found and updated where they are;
-- **notes you've deleted stay deleted** (`--force` brings them back);
+- notes you've edited are kept as they are. If the conversation has newer messages, the summary tells you, and `--force` replaces your version;
+- notes you've moved or renamed, into your own folders for example, are found and updated where they are;
+- notes you've deleted stay deleted, unless you pass `--force`;
 - conversations missing from the new export are kept, since exports are sometimes incomplete.
 
 convoviz recognizes its notes by their `conversation_id` property and remembers what it wrote in `.convoviz/state.json`. It never overwrites a file it didn't create, so it's safe to point at an existing vault.
@@ -215,7 +213,7 @@ To keep settings, run `convoviz config init` and edit the file it creates (`conv
 <details>
 <summary><strong>Is my data sent anywhere?</strong></summary>
 
-No. convoviz reads the export from your disk and writes files next to it. It makes no network requests, and the charts page loads nothing from the internet.
+No. convoviz reads the export from your disk and writes the archive to a folder on your disk. It makes no network requests, and the charts page loads nothing from the internet.
 </details>
 
 <details>
@@ -268,11 +266,11 @@ ChatGPT's export format is undocumented and changes often. When convoviz meets s
 convoviz inspect --json ~/Downloads/chatgpt-export.zip
 ```
 
-This describes the export's **structure only**: field names, content types and counts. It never includes titles, messages, links, file names or ids. Paste it into a [bug report](https://github.com/mohamed-chs/convoviz/issues/new?template=bug_report.yml). Please don't attach your export itself.
+This describes only the export's structure: field names, content types and counts. It never includes titles, messages, links, file names or ids. Paste it into a [bug report](https://github.com/mohamed-chs/convoviz/issues/new?template=bug_report.yml). Please don't attach your export itself.
 
 ## Contributing
 
-Ideas, quirks, or a note that it worked for you are all welcome in the [issues](https://github.com/mohamed-chs/convoviz/issues). If convoviz saved you some time, a ⭐ helps other people find it.
+Ideas, bug reports and notes that it worked for you are welcome in the [issues](https://github.com/mohamed-chs/convoviz/issues). If convoviz saved you some time, a ⭐ helps other people find it.
 
 To work on the code, see [CONTRIBUTING.md](https://github.com/mohamed-chs/convoviz/blob/main/CONTRIBUTING.md). How the pieces fit together is in [docs/dev/architecture.md](https://github.com/mohamed-chs/convoviz/blob/main/docs/dev/architecture.md), and what's known about the export format is in [docs/dev/export-format.md](https://github.com/mohamed-chs/convoviz/blob/main/docs/dev/export-format.md).
 
