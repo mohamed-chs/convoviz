@@ -34,6 +34,18 @@ _MIME_EXT = {
     "text/plain": ".txt",
     "text/markdown": ".md",
     "text/csv": ".csv",
+    "text/html": ".html",
+    "image/avif": ".avif",
+    "audio/mp4": ".m4a",
+    "audio/aac": ".aac",
+    "audio/flac": ".flac",
+    "video/quicktime": ".mov",
+    "application/zip": ".zip",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+    "application/msword": ".doc",
+    "application/vnd.ms-excel": ".xls",
 }
 
 
