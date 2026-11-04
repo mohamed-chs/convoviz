@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import orjson
 
+from convoviz.markdown import split_fenced
 from convoviz.model import CITE_CLOSE, CITE_OPEN, Source, TextBlock
 
 if TYPE_CHECKING:
@@ -103,7 +104,7 @@ def render_text(text: str, meta: dict[str, Any], diagnostics: Diagnostics) -> Te
     text = _LEGACY_PLACEHOLDER_RE.sub("", text)
     text = _BARE_CITE_RE.sub("", text)
     text = _PUA_RE.sub("", text)
-    text = _collapse_repeats(text)
+    text = _tidy_blank_lines(_collapse_repeats(text))
     if uncited := [f for f in footnote if not sources.known(f)]:
         text = text.rstrip() + "\n\nSources: " + sources.marker(uncited)
     return TextBlock(text, tuple(sources.items))
@@ -489,6 +490,19 @@ _REPEAT_RE = re.compile(
     + re.escape(CITE_CLOSE)
     + r")+"
 )
+
+
+_BLANK_RUN_RE = re.compile(r"\n{3,}")
+
+
+def _tidy_blank_lines(text: str) -> str:
+    """Drop the extra blank lines that block replacements (lists, tables) leave in prose."""
+    if "\n\n\n" in text:
+        text = "".join(
+            chunk if code else _BLANK_RUN_RE.sub("\n\n", chunk)
+            for code, chunk in split_fenced(text)
+        )
+    return text.strip("\n")
 
 
 def _collapse_repeats(text: str) -> str:

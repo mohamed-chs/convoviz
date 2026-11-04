@@ -93,6 +93,45 @@ def rich_conversation() -> dict:
             ]
         },
     )
+    b.user("Email the group and suggest a bag")
+    b.assistant("Comparing bags first.", metadata={"is_thinking_preamble_message": True})
+    products = f'{OPEN}products{SEP}{{"selections":[["turn1product1","Day pack"]]}}{CLOSE}'
+    chart = "{{chart}}"
+    final = (
+        ':::writing{variant="email" subject="Trip"}\nHi all,\n\nTrains it is.\n:::\n'
+        f"Bags:\n{products}\nPrices by city:{chart}"
+    )
+    b.assistant(
+        final,
+        metadata={
+            "content_references": [
+                {
+                    "type": "products",
+                    "matched_text": products,
+                    "products": [
+                        {
+                            "cite": "turn1product1",
+                            "title": "Day pack",
+                            "price": "€40",
+                            "merchants": "Bags.example - Store",
+                        }
+                    ],
+                },
+                {
+                    "type": "client_defined_widget",
+                    "matched_text": chart,
+                    "data": {
+                        "widget_type": "charts_widget_v2",
+                        "content": {
+                            "xKey": "city",
+                            "series": [{"dataKey": "eur", "label": "Price", "valueSuffix": "€"}],
+                            "data": [{"city": "Paris", "eur": 30}, {"city": "Rome", "eur": 25}],
+                        },
+                    },
+                },
+            ]
+        },
+    )
     return b.build()
 
 

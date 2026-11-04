@@ -163,7 +163,7 @@ def test_image_groups_become_page_links() -> None:
         ],
     }
     block = render_text(f"Cats{marker}", {"content_references": [ref]}, Diagnostics())
-    assert block.text == "Cats\n\n- [A \\[cat\\]](<https://p.example/cat>)\n\n"
+    assert block.text == "Cats\n\n- [A \\[cat\\]](<https://p.example/cat>)"
 
 
 def test_safe_urls_and_sources_footnote() -> None:
@@ -204,6 +204,9 @@ def test_product_carousels_list_their_products() -> None:
         }
     ]
     block = _render(f"Options:\n{marker}", {"content_references": refs})
-    assert block.text == (
-        "Options:\n\n\n- **Headphones A** — $99 · Shop.example\n- **Only name**\n\n"
-    )
+    assert block.text == ("Options:\n\n- **Headphones A** — $99 · Shop.example\n- **Only name**")
+
+
+def test_blank_lines_in_code_survive_tidying() -> None:
+    block = render_text("Before\n\n\n\nAfter\n```\na\n\n\n\nb\n```", {}, Diagnostics())
+    assert block.text == "Before\n\nAfter\n```\na\n\n\n\nb\n```"
