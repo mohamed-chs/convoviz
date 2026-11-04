@@ -27,6 +27,7 @@ dependencies = [
     "orjson>=3.13.0",
     "platformdirs>=4.13.6",
     "rich>=15.0.0",
+    "tzdata>=2026.5 ; sys_platform == 'win32'",
 ]
 
 [project.urls]

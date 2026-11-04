@@ -309,7 +309,7 @@ def test_custom_instructions_page(run) -> None:
             _conv(n=4),
         ]
     )
-    page = (out / "Custom instructions.md").read_text()
+    page = (out / "Custom instructions.md").read_text(encoding="utf-8")
     newest = page.index("## 2026-01-06 to 2026-01-10 · 2 conversations")
     oldest = page.index("## 2026-01-01 · 1 conversation\n")
     assert newest < oldest

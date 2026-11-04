@@ -33,6 +33,7 @@ dependencies = [
     { name = "orjson" },
     { name = "platformdirs" },
     { name = "rich" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 
 [package.dev-dependencies]
@@ -49,6 +50,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.13.0" },
     { name = "platformdirs", specifier = ">=4.13.6" },
     { name = "rich", specifier = ">=15.0.0" },
+    { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2026.5" },
 ]
 
 [package.metadata.requires-dev]
@@ -377,4 +379,13 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/06/ad/d2ece9e2ec588394d0ea0c12b683ff68540f5534988b4e4412664bb87a56/ty-0.0.93-py3-none-win32.whl", hash = "sha256:1c677be05fb0ef0864a305fa4a5258190fc0fc9d79f53c1ce93a0342256f21f1", size = 13464721, upload-time = "2026-10-28T00:52:35.916Z" },
     { url = "https://files.pythonhosted.org/packages/a9/17/ef0c1180498564f08331f4be35aea9de09b37c6ca12fa50ad1959d9d1e38/ty-0.0.93-py3-none-win_amd64.whl", hash = "sha256:65072e0a71f9af81a31a4656521c96eaf539452c37287b9e14a81504b22e0864", size = 14091561, upload-time = "2026-10-28T00:52:38.008Z" },
     { url = "https://files.pythonhosted.org/packages/ef/f8/13fb149c7c5a33be119ecea9c56033b32cc1f87c5ac84d577f2236b7c964/ty-0.0.93-py3-none-win_arm64.whl", hash = "sha256:47991915f6a2101cc63da1dd07b2f3bbd226ab4a14ff3c858b20764c38376166", size = 13552165, upload-time = "2026-10-28T00:52:40.111Z" },
+]
+
+[[package]]
+name = "tzdata"
+version = "2026.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/68/f1b440335057bfce71b6e50a9d09445aa2ecbd08359a337976627b8409e7/tzdata-2026.5.tar.gz", hash = "sha256:8cc73c0a0bfca7dbfa59235d60b2eff82231dee33f53d206db1acd9173cfc0a7", size = 200404, upload-time = "2026-10-03T09:23:14.143Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/21/1e5995a1c920cce14e4bffae20c665ec10e7ed03ab25e006cd741092b718/tzdata-2026.5-py2.py3-none-any.whl", hash = "sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac", size = 347996, upload-time = "2026-10-03T09:23:12.535Z" },
 ]

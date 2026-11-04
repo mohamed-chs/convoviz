@@ -41,6 +41,8 @@ versions follow [SemVer](https://semver.org).
 - Generated images get their prompt as a caption when the image itself
   doesn't carry it.
 - AVIF images and QuickTime videos stored as `.dat` get the right extension.
+- `--timezone` and the `timezone` setting work on Windows, which has no time
+  zone database of its own (convoviz now installs `tzdata` there).
 - `inspect` could include an unrecognized type name verbatim, even one that
   isn't identifier-like. Those are now replaced by `<other>`.
 
