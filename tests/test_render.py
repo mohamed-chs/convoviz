@@ -227,3 +227,14 @@ def test_folded_summaries_use_html_escaping_and_urls_stay_links(options: RenderO
     note = _render(b.build(), options)
     assert "<summary>🗎 Canvas: Notes_v2 &amp; &lt;draft&gt;</summary>" in note
     assert "[^1]: [Page](https://ex.example/a%20b%28c)" in note
+
+
+def test_inline_drafts_are_labelled(options: RenderOptions) -> None:
+    builder = ConversationBuilder()
+    builder.user("write it")
+    builder.assistant(':::writing{variant="email" subject="Q3 <plan>"}\nHi team,\n\n# Agenda\n:::')
+    text = _render(builder.build(), options)
+    assert (
+        "<details open>\n<summary>🗎 Email: Q3 &lt;plan&gt;</summary>\n\nHi team,\n\n### Agenda"
+        in text
+    )

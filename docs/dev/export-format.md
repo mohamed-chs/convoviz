@@ -102,6 +102,11 @@ and Nexus, med confidence):
 
 ## Assistant messages that aren't the answer (med)
 
+- `:::writing{variant="email" subject="…" id="…"} … :::` blocks (CommonMark
+  directives) hold drafts that ChatGPT shows as cards. The variants are
+  `document`, `email`, `social_post` and `standard`. They become labelled
+  document sections, and directives inside code are left alone.
+
 - `metadata.is_thinking_preamble_message: true`: a progress note shown in the
   thinking panel. Rendered with the reasoning.
 - `metadata.model_dil_v2.fallbackMarkdown`: interactive replies keep widget

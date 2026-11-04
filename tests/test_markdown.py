@@ -3,7 +3,7 @@ from __future__ import annotations
 from hypothesis import given
 from hypothesis import strategies as st
 
-from convoviz.chatgpt.textfix import clean_assistant_text
+from convoviz.chatgpt.textfix import Directive, clean_assistant_text, split_directives
 from convoviz.markdown import (
     close_fences,
     convert_math,
@@ -50,9 +50,22 @@ def test_split_fenced_handles_tildes() -> None:
     assert chunks == [(False, "a\n"), (True, "~~~\n```\n~~~\n"), (False, "b")]
 
 
-def test_canvas_directives_and_sandbox_links() -> None:
-    text = ':::writing{variant="email" id="1"}\nDear X\n:::\nSee [report](sandbox:/mnt/data/r.pdf).'
-    assert clean_assistant_text(text) == "\nDear X\n\nSee `report`."
+def test_sandbox_links() -> None:
+    assert clean_assistant_text("See [report](sandbox:/mnt/data/r.pdf).") == "See `report`."
+
+
+def test_writing_directives_split_out() -> None:
+    text = (
+        'Here:\n:::writing{variant="email" subject="Hi" id="1"}\nDear X\n'
+        "```\n:::\n```\n:::\nBye\n```\n:::other{}\n```\n:::writing{}\nopen"
+    )
+    assert split_directives(text) == [
+        "Here:\n",
+        Directive("Email", "Hi", "Dear X\n```\n:::\n```"),
+        "Bye\n```\n:::other{}\n```\n",
+        Directive("Canvas", "", "open"),
+    ]
+    assert split_directives("a ::: b") == ["a ::: b"]
 
 
 @given(st.text())

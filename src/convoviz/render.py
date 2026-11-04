@@ -402,11 +402,11 @@ class _Renderer:
         return "## Files from this conversation\n\n" + "\n\n".join(items)
 
     def document(self, block: DocumentBlock) -> str:
-        title = block.title or "Canvas"
         version = f" (v{block.version})" if block.version > 1 else ""
         doc_type = block.doc_type or ""
         if doc_type.startswith("code/"):
             body = _fenced(block.content, doc_type.removeprefix("code/"))
         else:
             body = self.prose(block.content)
-        return _details(f"🗎 Canvas: {title}{version}", body, open_=True)
+        label = f"{block.kind}: {block.title}" if block.title else block.kind
+        return _details(f"🗎 {label}{version}", body, open_=True)

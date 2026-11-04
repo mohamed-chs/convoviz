@@ -113,6 +113,17 @@ def test_interactive_reply_uses_markdown_fallback() -> None:
     assert diagnostics.counters["interactive_replies"] == 1
 
 
+def test_writing_directive_becomes_a_document() -> None:
+    builder = ConversationBuilder()
+    builder.user("q")
+    builder.assistant(':::writing{variant="social_post"}\nBig news!\n:::\nWant changes?')
+    messages = _messages(builder)
+    assert messages[1].blocks == [
+        DocumentBlock("", "Big news!", kind="Social post"),
+        TextBlock("Want changes?"),
+    ]
+
+
 def test_code_execution_and_output() -> None:
     builder = ConversationBuilder()
     builder.user("plot")

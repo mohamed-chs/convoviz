@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 import orjson
 
 from convoviz.chatgpt.citations import render_text
-from convoviz.chatgpt.textfix import clean_assistant_text
+from convoviz.chatgpt.textfix import Directive, clean_assistant_text, split_directives
 from convoviz.model import (
     Attachment,
     AttachmentBlock,
@@ -32,6 +32,7 @@ from convoviz.model import (
     ReasoningBlock,
     Role,
     TextBlock,
+    strip_citations,
 )
 
 if TYPE_CHECKING:
@@ -297,7 +298,12 @@ def _parts(
         if role == "assistant":
             # Citations first: content_references index into the raw text.
             block = render_text(text, meta, ctx.diagnostics)
-            blocks.append(TextBlock(clean_assistant_text(block.text), block.sources))
+            for piece in split_directives(block.text):
+                if isinstance(piece, Directive):
+                    content = clean_assistant_text(strip_citations(piece.body))
+                    blocks.append(DocumentBlock(piece.title, content, kind=piece.label))
+                elif piece.strip():
+                    blocks.append(TextBlock(clean_assistant_text(piece), block.sources))
         else:
             blocks.append(TextBlock(text))
 

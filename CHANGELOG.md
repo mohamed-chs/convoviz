@@ -20,6 +20,8 @@ versions follow [SemVer](https://semver.org).
 
 - Progress notes written while the model thinks are folded into its
   reasoning.
+- Drafts ChatGPT shows as cards (emails, posts, documents) appear as labelled
+  sections, such as "Email: subject", instead of plain text.
 - Library files with no payload in the export are no longer listed as missing.
 
 ### Fixed

@@ -102,6 +102,7 @@ class DocumentBlock:
     content: str
     doc_type: str | None = None
     version: int = 1
+    kind: str = "Canvas"  # or what an inline draft is: "Email", "Document", ...
 
 
 @dataclass(frozen=True, slots=True)
