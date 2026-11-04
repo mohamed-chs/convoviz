@@ -7,6 +7,7 @@ collapsible parts use ``<details>`` rather than Obsidian-only callouts.
 
 from __future__ import annotations
 
+import html
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -182,8 +183,14 @@ def _demoted(segment: str) -> str:
 
 
 def _details(summary: str, body: str, *, open_: bool = False) -> str:
+    """A folded section with a plain-text ``summary``.
+
+    The summary sits in raw HTML, where Markdown escapes would show literally,
+    so it is HTML-escaped instead.
+    """
     # The blank line after <summary> makes Markdown inside render (CommonMark HTML block rule).
     attr = " open" if open_ else ""
+    summary = html.escape(" ".join(summary.split()), quote=False)
     return f"<details{attr}>\n<summary>{summary}</summary>\n\n{body.strip()}\n\n</details>"
 
 
@@ -194,6 +201,14 @@ def _fenced(content: str, language: str = "") -> str:
 
 def _link_target(target: str) -> str:
     return quote(target, safe="/._-~#:")
+
+
+def _url(url: str) -> str:
+    """A URL that survives as a Markdown link destination."""
+    url = url.strip().replace(" ", "%20").replace("<", "%3C").replace(">", "%3E")
+    if url.count("(") != url.count(")"):
+        url = url.replace("(", "%28").replace(")", "%29")
+    return url
 
 
 def _merge_reasoning(messages: list[Message]) -> list[tuple[Message, Block]]:
@@ -289,14 +304,14 @@ class _Renderer:
             case ReasoningBlock():
                 if not self.options.reasoning:
                     return ""
-                title = escape_inline(block.title or "Reasoning")
-                return (
-                    _details(title, self.prose(block.text)) if block.text.strip() else f"*{title}*"
-                )
+                title = block.title or "Reasoning"
+                if not block.text.strip():
+                    return f"*{escape_inline(title)}*"
+                return _details(title, self.prose(block.text))
             case CodeBlock():
                 if not self.options.tool_calls or not block.code.strip():
                     return ""
-                summary = "Code" + (f" ({escape_inline(block.language)})" if block.language else "")
+                summary = "Code" + (f" ({block.language})" if block.language else "")
                 return _details(summary, _fenced(block.code, block.language))
             case OutputBlock():
                 if not self.options.tool_calls or not block.text.strip():
@@ -350,7 +365,7 @@ class _Renderer:
         lines = []
         for number, source in enumerate(self.footnotes, 1):
             title = escape_inline(source.title or source.url or "Source")
-            text = f"[{title}]({source.url})" if source.url else title
+            text = f"[{title}]({_url(source.url)})" if source.url else title
             if source.attribution and source.attribution not in (source.title or ""):
                 text += f" — {escape_inline(source.attribution)}"
             lines.append(f"[^{number}]: {text}")
@@ -360,7 +375,7 @@ class _Renderer:
         quoted = blockquote(block.text.strip())
         title = escape_inline(block.title or block.url or "")
         if block.url:
-            title = f"[{title}]({block.url})"
+            title = f"[{title}]({_url(block.url)})"
         return f"{quoted}\n>\n> — {title}" if title else quoted
 
     def attachment(self, block: AttachmentBlock) -> str:
@@ -379,7 +394,7 @@ class _Renderer:
         return f"[📎 {escape_inline(name)}]({_link_target(target)})"
 
     def document(self, block: DocumentBlock) -> str:
-        title = escape_inline(block.title or "Canvas")
+        title = block.title or "Canvas"
         version = f" (v{block.version})" if block.version > 1 else ""
         doc_type = block.doc_type or ""
         if doc_type.startswith("code/"):

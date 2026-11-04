@@ -194,3 +194,36 @@ def test_message_count_counts_turns(options: RenderOptions) -> None:
     conv = parse_conversation(b.build(), Diagnostics())
     assert conv is not None
     assert render_conversation(conv, options, lambda _a: None).messages == 4
+
+
+def test_folded_summaries_use_html_escaping_and_urls_stay_links(options: RenderOptions) -> None:
+    b = ConversationBuilder()
+    b.user("Draft it")
+    b.add(
+        "assistant",
+        {
+            "content_type": "code",
+            "text": json.dumps({"name": "Notes_v2 & <draft>", "type": "document", "content": "x"}),
+        },
+        recipient="canmore.create_textdoc",
+    )
+    marker = f"{OPEN}cite{SEP}turn0search0{CLOSE}"
+    text = f"Done{marker}."
+    b.assistant(
+        text,
+        metadata={
+            "content_references": [
+                {
+                    "type": "webpage",
+                    "matched_text": marker,
+                    "start_idx": 4,
+                    "end_idx": 4 + len(marker),
+                    "url": "https://ex.example/a b(c",
+                    "title": "Page",
+                }
+            ]
+        },
+    )
+    note = _render(b.build(), options)
+    assert "<summary>🗎 Canvas: Notes_v2 &amp; &lt;draft&gt;</summary>" in note
+    assert "[^1]: [Page](https://ex.example/a%20b%28c)" in note
