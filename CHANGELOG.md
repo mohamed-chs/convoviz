@@ -5,6 +5,8 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+## 1.0.1 — 2026-11
+
 ### Changed
 
 - The end-of-run summary is easier to read: counts get thousands separators,
