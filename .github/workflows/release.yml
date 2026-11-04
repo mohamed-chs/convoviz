@@ -2,144 +2,82 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    tags: ["v*.*.*"]
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   build:
-    name: Build Package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Verify version matches tag
+      - uses: astral-sh/setup-uv@v7
+      - name: Check that the tag matches the package version
         run: |
-          VERSION=$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml)
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          if [[ "$VERSION" != "$TAG_VERSION" ]]; then
-            echo "Error: pyproject.toml version ($VERSION) doesn't match tag (v$TAG_VERSION)"
-            exit 1
+          VERSION=$(uv version --short)
+          if [[ "v$VERSION" != "$GITHUB_REF_NAME" ]]; then
+            echo "pyproject.toml says $VERSION but the tag is $GITHUB_REF_NAME"; exit 1
           fi
-          echo "Version verified: $VERSION"
-
-      - name: Build package
-        run: uv build
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v7
+      - run: uv sync --locked
+      - run: uv run pytest
+      - run: uv build
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
 
-  test-install:
-    name: Test Installation
+  install:
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.12", "3.13", "3.14"]
-        extra: ["", "[viz]"]
     steps:
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
-
-      - name: Install from wheel (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          uv venv test-env
-          source test-env/bin/activate
-          WHEEL=$(ls dist/*.whl)
-          uv pip install "${WHEEL}${{ matrix.extra }}"
-
-      - name: Install from wheel (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          uv venv test-env
-          test-env\Scripts\activate
-          $wheel = Get-ChildItem dist/*.whl | Select-Object -First 1
-          $target = $wheel.FullName + "${{ matrix.extra }}"
-          uv pip install $target
-
-      - name: Verify CLI works (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          source test-env/bin/activate
-          convoviz --help
-          if [[ "${{ matrix.extra }}" == "[viz]" ]]; then
-            python -c "import wordcloud; import nltk; print('Viz OK')"
-          fi
-
-      - name: Verify CLI works (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
+      - name: Install the wheel as a tool and run it
+        shell: bash
         env:
           PYTHONUTF8: "1"
         run: |
-          test-env\Scripts\activate
-          convoviz --help
-          if ("${{ matrix.extra }}" -eq "[viz]") {
-            python -c "import wordcloud; import nltk; print('Viz OK')"
-          }
+          uv tool install dist/*.whl
+          convoviz --version
 
-  publish-pypi:
-    name: Publish to PyPI
-    needs: [build, test-install]
+  publish:
+    needs: install
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write      # Required for OIDC Trusted Publishing
-      attestations: write # Required for generating PyPI provenance attestations
-      contents: read       # Basic repo access for metadata
+      id-token: write # PyPI trusted publishing
+      attestations: write
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          verbose: true
-
-  create-release:
-    name: Create GitHub Release
-    needs: publish-pypi
+  github-release:
+    needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
+      - name: Release notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '$0 ~ "^## \\[?"v"\\]?" {on=1; next} /^## / && on {exit} on' CHANGELOG.md > notes.md
+      - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
-          generate_release_notes: true
-          draft: false
+          body_path: notes.md

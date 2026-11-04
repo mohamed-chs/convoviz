@@ -1,13 +1,11 @@
 __pycache__/
 .venv/
 dist/
-.env
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
 
-# testing on personal data
-conversations.json
-conversations_formatted.json
+# Never commit real exports or generated archives: they are personal data.
 *.zip
-conversation_list.json
-conversation_list.txt
-test-output/
-# etc..
+conversations*.json
+/output/

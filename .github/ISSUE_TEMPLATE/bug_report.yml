@@ -1,0 +1,38 @@
+name: Bug report
+description: Something was converted wrongly, crashed, or is missing.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Please **never attach your export or paste conversation text**: it is personal data.
+        `convoviz inspect --json` describes the export's structure without any content, and is usually what's needed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command you ran
+      placeholder: convoviz ~/Downloads/export.zip
+  - type: textarea
+    id: inspect
+    attributes:
+      label: Output of `convoviz inspect --json <your export>`
+      description: Field names and counts only. Check it before pasting if you like.
+      render: json
+  - type: textarea
+    id: output
+    attributes:
+      label: Error output or end-of-run summary
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: convoviz version and OS
+      placeholder: convoviz 1.0.0, Windows 11
+    validations:
+      required: true

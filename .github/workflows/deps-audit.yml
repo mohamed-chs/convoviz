@@ -1,78 +1,29 @@
-name: Dependency Audit
+name: Dependency audit
 
 on:
   schedule:
-    # Run every Monday at 9 AM UTC
-    - cron: "0 9 * * 1"
-  workflow_dispatch: # Allow manual trigger
+    - cron: "0 9 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   audit:
-    name: Dependency Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Known vulnerabilities in locked dependencies
+        run: uv export --locked --no-dev --no-emit-project --format requirements.txt > req.txt && uvx pip-audit -r req.txt
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Check dependency resolution
-        run: |
-          echo "Checking that all dependencies resolve correctly..."
-          uv sync --group dev
-          echo "Dependencies resolved successfully"
-
-      - name: Check for outdated dependencies
-        run: |
-          echo "Checking for outdated dependencies..."
-          uv pip list --outdated || true
-
-      - name: Run pip-audit for vulnerabilities
-        run: |
-          uv pip install pip-audit
-          uv run pip-audit || echo "::warning::Vulnerability check found issues - review above"
-
-      - name: Test fresh install from PyPI
-        run: |
-          uv venv fresh-env
-          source fresh-env/bin/activate
-          uv pip install convoviz
-          convoviz --help
-          echo "PyPI base install verification passed"
-        continue-on-error: true
-
-      - name: Test fresh install with [viz] from PyPI
-        run: |
-          uv venv fresh-env-viz
-          source fresh-env-viz/bin/activate
-          uv pip install "convoviz[viz]"
-          convoviz --help
-          python -c "import wordcloud; import nltk; print('PyPI viz install verification passed')"
-        continue-on-error: true
-
-  compatibility:
-    name: Compatibility Check (Python ${{ matrix.python-version }})
+  latest:
+    name: Tests against the newest dependency versions
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Fresh dependency resolution
-        run: |
-          rm -f uv.lock
-          uv sync --group dev
-
-      - name: Run tests
-        run: uv run pytest -v --tb=short
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.15"
+      - run: uv sync --upgrade
+      - run: uv run pytest
