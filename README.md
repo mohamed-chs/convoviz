@@ -2,7 +2,7 @@
 
 Turn your ChatGPT data export into a folder of Markdown notes you own, plus a page of charts about how you've used ChatGPT.
 
-- **One readable note per conversation.** Each note has its properties (dates, models, message count), your prompts and the answers, and its sources as footnotes. Reasoning, code and tool output are folded away. Edited and regenerated replies are kept too, folded at the point where they branch.
+- **One readable note per conversation.** Each note has its properties (dates, models, message count), your prompts and the answers, and its sources as footnotes. Reasoning, code and tool output are folded away. Charts become tables, shopping picks become lists, and drafted emails and posts become labelled sections. Edited and regenerated replies are kept too, folded at the point where they branch.
 - **Works with today's exports.** That includes split exports (`conversations-000.json` …), attachments stored as `.dat` files, ZIPs nested inside ZIPs, and multi-part downloads. Unknown content is kept as plain text and reported, never dropped silently.
 - **Safe to re-run.** Run it again on a newer export and only changed conversations are rewritten. Notes you've edited, moved or deleted are respected.
 - **Made for [Obsidian](https://obsidian.md)**, and readable anywhere. The notes are plain CommonMark/GFM, so they also render on GitHub, in VS Code, or as text. The archive comes with a `Conversations.base` table view.
