@@ -132,3 +132,30 @@ def test_old_config_file_explains_the_upgrade(
     assert _run(["config", "init", "--force"]) == 0
     assert (tmp_path / "cfg/config.toml.bak").read_text() == old
     assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "out")]) == 0
+
+
+def test_errors_are_listed_verbatim_and_capped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from convoviz import writer
+
+    real = writer._atomic_write
+
+    def fail_on_notes(path: Path, data: bytes) -> None:
+        if "conversations" in path.parts:
+            raise OSError(28, "No space left on device")
+        real(path, data)
+
+    monkeypatch.setattr(writer, "_atomic_write", fail_on_notes)
+    conversations = []
+    for n in range(12):
+        b = ConversationBuilder(title=f"Chat [{n}] [/draft]", conversation_id=f"id-{n}")
+        b.user("hi")
+        b.assistant("hello")
+        conversations.append(b.build())
+    export = write_export(tmp_path / "export.zip", conversations)
+    assert _run([str(export), "-o", str(tmp_path / "out"), "--no-insights"]) == 1
+    printed = capsys.readouterr().out
+    assert printed.count("could not write") == 10
+    assert "could not write 'Chat [0] [/draft]'" in printed
+    assert "… and 2 more" in printed
