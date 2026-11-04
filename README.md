@@ -263,10 +263,10 @@ Custom instructions are collected in `Custom instructions.md`, one section per v
 ChatGPT's export format is undocumented and changes often. When convoviz meets something new, the end-of-run summary says so. To report it, run:
 
 ```sh
-convoviz inspect --json ~/Downloads/chatgpt-export.zip
+convoviz inspect --json
 ```
 
-This describes only the export's structure: field names, content types and counts. It never includes titles, messages, links, file names or ids. Paste it into a [bug report](https://github.com/mohamed-chs/convoviz/issues/new?template=bug_report.yml). Please don't attach your export itself.
+Like `convoviz`, it uses the newest export in Downloads unless you pass a path. The output describes only the export's structure: field names, content types and counts. It never includes titles, messages, links, file names or ids. Paste it into a [bug report](https://github.com/mohamed-chs/convoviz/issues/new?template=bug_report.yml). Please don't attach your export itself.
 
 ## Contributing
 

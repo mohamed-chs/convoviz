@@ -11,6 +11,8 @@ versions follow [SemVer](https://semver.org).
   the output folder is shown as `~/…`, `index.md` and `insights.html` are
   clickable in terminals that support links, and the first run says how to
   open the archive in Obsidian.
+- `convoviz inspect` with no path uses the newest export in Downloads, like
+  `convoviz` does.
 - `--help` no longer shows `[default: False]` next to every flag.
 - The "When you ask" heatmap in `insights.html` is larger and fills its card.
 

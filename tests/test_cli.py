@@ -111,6 +111,20 @@ def test_inspect_human(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> No
     assert "content_types" in capsys.readouterr().out
 
 
+def test_inspect_finds_export_in_downloads(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _run(["inspect"]) == 2
+    assert "No ChatGPT export found" in capsys.readouterr().err
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+    _export(downloads, "abc-2026-11-01.zip")
+    assert _run(["inspect", "--json"]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["shape"]["conversations"] == 1
+    assert "abc-2026-11-01.zip" in captured.err
+
+
 def test_config_commands(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _run(["config", "path"])
     assert "not created yet" in capsys.readouterr().out

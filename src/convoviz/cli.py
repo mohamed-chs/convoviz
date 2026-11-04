@@ -162,7 +162,7 @@ def convert(
 
 @app.command(name="inspect")
 def inspect_export(
-    exports: Annotated[list[Path], Parameter(name="EXPORT")],
+    exports: Annotated[list[Path] | None, Parameter(name="EXPORT")] = None,
     /,
     *,
     json: Annotated[bool, Parameter(negative="", show_default=False)] = False,
@@ -175,14 +175,17 @@ def inspect_export(
     Parameters
     ----------
     exports
-        The export ZIP(s), folder, or conversations.json.
+        The export ZIP(s), folder, or conversations.json. Default: the newest
+        export in Downloads.
     json
         Print machine-readable JSON.
     """
     try:
+        # Read-only, so no confirmation; stderr keeps --json output clean.
+        paths = _resolve_inputs(exports, assume_yes=True, quiet=False, out=err)
         with make_workdir() as workdir:
-            report = census(_open_sources([p.expanduser() for p in exports], Path(workdir)))
-    except SourceError as exc:
+            report = census(_open_sources(paths, Path(workdir)))
+    except (UsageError, SourceError) as exc:
         err.print(f"[red]Error:[/] {escape(str(exc))}")
         return 2
     except OSError as exc:
@@ -265,7 +268,9 @@ def _mtime(path: Path) -> float:
         return 0.0
 
 
-def _resolve_inputs(exports: list[Path] | None, *, assume_yes: bool, quiet: bool) -> list[Path]:
+def _resolve_inputs(
+    exports: list[Path] | None, *, assume_yes: bool, quiet: bool, out: Console = console
+) -> list[Path]:
     if exports:
         return [p.expanduser() for p in exports]
     downloads = Path(platformdirs.user_downloads_dir())
@@ -281,7 +286,7 @@ def _resolve_inputs(exports: list[Path] | None, *, assume_yes: bool, quiet: bool
     if not quiet:
         age = _age(newest)
         names = escape(", ".join(p.name for p in paths))
-        console.print(f"Found export: [bold]{names}[/] ({age})")
+        out.print(f"Found export: [bold]{names}[/] ({age})")
     if not assume_yes and sys.stdin.isatty() and not Confirm.ask("Use it?", default=True):
         raise UsageError("Cancelled. Pass the export path explicitly.")
     return [newest]
@@ -433,7 +438,7 @@ def _summary(
         if kinds:
             say(f"  [dim]Content convoviz doesn't know yet ({kinds}) was shown as plain text.[/]")
         say(
-            "  [dim]If something looks wrong, run `convoviz inspect --json <export>` and share "
+            "  [dim]If something looks wrong, run `convoviz inspect --json` and share "
             f"the output (it contains no personal data) at {ISSUES_URL}[/]"
         )
 
