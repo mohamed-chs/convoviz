@@ -1,13 +1,16 @@
 [project]
 name = "convoviz"
 version = "1.0.0"
-description = "Turn your ChatGPT data export into a clean, local Markdown archive and a personal insights report."
+description = "Export your ChatGPT history to Markdown: readable notes for Obsidian, plus private charts and word clouds of how you use ChatGPT."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Mohamed Cheikh Sidiya", email = "mohamedcheikhsidiya77@gmail.com" }]
-keywords = ["chatgpt", "export", "markdown", "obsidian", "archive", "openai", "visualization"]
+keywords = [
+  "chatgpt", "chatgpt-export", "conversations", "markdown", "obsidian", "archive", "backup",
+  "openai", "notes", "word-cloud", "visualization",
+]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
@@ -88,6 +91,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "src/convoviz/insights.py" = ["E501"]  # inline HTML/SVG templates
 "tests/**" = ["S101", "D", "ANN", "PLC0415", "E501", "INP001", "SLF001", "ARG001"]
+"scripts/**" = ["INP001", "S603", "T201"]  # maintainer tools, run by hand
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
