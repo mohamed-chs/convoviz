@@ -43,9 +43,12 @@ input paths ─► source.py ─► chatgpt/ (adapter) ─► model.py ─┬─
   are replayed, and citations are already `Source`s). Renderers stay simple.
 - **Text is Markdown, code is sacred.** Every prose transformation goes
   through `markdown.map_prose`, so fenced and inline code are never altered.
-- **The user's files win.** The writer never overwrites a note whose hash
-  differs from what convoviz last wrote, and never deletes notes for
-  conversations missing from a newer export.
+- **The user's files win.** The writer never overwrites a note (or `index.md`,
+  `Conversations.base`, `insights.html`) whose hash differs from what convoviz
+  last wrote, never overwrites a file it didn't create, follows notes the user
+  moved (by their `conversation_id` property), doesn't recreate notes the user
+  deleted, and never deletes notes for conversations missing from a newer
+  export. State is saved even when a run is interrupted.
 - **Few dependencies.** cyclopts (CLI), rich (terminal output), orjson (fast
   JSON), platformdirs (Downloads/Documents/config locations). The charts are
   plain SVG strings, with no plotting library.

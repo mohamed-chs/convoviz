@@ -117,7 +117,8 @@ def convert(
     insights
         Write insights.html with charts of your usage.
     force
-        Overwrite notes even if you edited them since the last run.
+        Overwrite notes and files you edited since the last run, and recreate
+        notes you deleted.
     yes
         Don't ask for confirmation.
     quiet
@@ -297,12 +298,15 @@ def _run(paths: list[Path], settings: Config, *, force: bool, quiet: bool) -> in
             disable=quiet,
             transient=True,
         )
-        with progress:
-            task = progress.add_task("notes", total=len(export.conversations))
-            report = writer.write(export, progress=lambda _: progress.advance(task))
+        extra: dict[str, bytes] = {}
         if settings.insights:
             stats = compute(export.conversations, settings.render.timezone)
-            (settings.output / "insights.html").write_text(render_insights(stats), encoding="utf-8")
+            extra["insights.html"] = render_insights(stats).encode()
+        with progress:
+            task = progress.add_task("notes", total=len(export.conversations))
+            report = writer.write(
+                export, progress=lambda _: progress.advance(task), extra_files=extra
+            )
     if not quiet:
         _summary(report, diagnostics, settings, time.monotonic() - started)
     elif diagnostics.errors:
@@ -335,10 +339,27 @@ def _summary(
             line += f", {report.attachments_missing} not included in the export"
         say(line)
     if report.kept_edits:
-        kept = len(report.kept_edits)
-        say(f"  [yellow]Kept {kept} note(s) you edited[/] (--force overwrites them):")
+        say(
+            f"  [yellow]{len(report.kept_edits)} note(s) you edited have newer messages in this "
+            "export.[/] Your version was kept (--force replaces it):"
+        )
         for path in report.kept_edits[:5]:
             say(f"    {path}")
+        if len(report.kept_edits) > 5:
+            say(f"    … and {len(report.kept_edits) - 5} more")
+    if report.edited_current:
+        say(f"  [dim]{report.edited_current} note(s) you edited were left as they are.[/]")
+    if report.deleted_skipped:
+        say(
+            f"  [dim]{report.deleted_skipped} note(s) you deleted were not recreated "
+            "(--force brings them back).[/]"
+        )
+    if report.kept_files:
+        names = ", ".join(report.kept_files)
+        say(
+            f"  [yellow]Left {names} alone[/]: changed since convoviz wrote it, or not "
+            "convoviz's. Delete or rename it to get a fresh copy."
+        )
     charts = ", or insights.html for charts" if settings.insights else ""
     say(f"  Start with index.md{charts}.")
     if diagnostics.skipped:

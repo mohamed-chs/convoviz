@@ -4,7 +4,7 @@ Turn your ChatGPT data export into a folder of Markdown notes you own, plus a pa
 
 - **One readable note per conversation.** Each note has its properties (dates, models, message count), your prompts and the answers, and its sources as footnotes. Reasoning, code and tool output are folded away. Edited and regenerated replies are kept too, folded at the point where they branch.
 - **Works with today's exports.** That includes split exports (`conversations-000.json` …), attachments stored as `.dat` files, ZIPs nested inside ZIPs, and multi-part downloads. Unknown content is kept as plain text and reported, never dropped silently.
-- **Safe to re-run.** Run it again on a newer export and only changed conversations are rewritten. Notes you've edited are never overwritten (unless you pass `--force`).
+- **Safe to re-run.** Run it again on a newer export and only changed conversations are rewritten. Notes you've edited, moved or deleted are respected.
 - **Made for [Obsidian](https://obsidian.md)**, and readable anywhere. The notes are plain CommonMark/GFM, so they also render on GitHub, in VS Code, or as text. The archive comes with a `Conversations.base` table view.
 - **Private.** Everything runs on your computer, and nothing is sent anywhere.
 
@@ -105,11 +105,14 @@ Fushimi Inari early in the morning, before the crowds[^1]. …
 Request a new export whenever you like and run convoviz again on the same output folder:
 
 - new and changed conversations are written, and unchanged ones are left alone;
-- a renamed conversation's note is moved to its new name;
-- **notes you've edited are kept as they are**, and the summary lists them (`--force` replaces them);
+- a conversation renamed in ChatGPT has its note renamed too;
+- **notes you've edited are kept as they are**. If the conversation has newer messages, the summary tells you (`--force` replaces your version);
+- **notes you moved or renamed** (into your own folders, say) are found again and updated where they are;
+- **notes you deleted stay deleted** (`--force` brings them back);
+- `index.md`, `Conversations.base` and `insights.html` are refreshed, unless you changed them;
 - conversations missing from the new export are kept, since exports are sometimes incomplete.
 
-convoviz keeps track of this in `.convoviz/state.json` inside the output folder.
+convoviz recognizes its notes by their `conversation_id` property, and keeps track of what it wrote in `.convoviz/state.json` inside the output folder. You can point it at an existing Obsidian vault: it never overwrites files it didn't create.
 
 ## Options
 
@@ -120,7 +123,7 @@ convoviz keeps track of this in `.convoviz/state.json` inside the output folder.
 | `--branches all\|active` | Keep edited/regenerated alternatives folded (default), or only the branch you last viewed. |
 | `--timezone ZONE` | Time zone for dates, e.g. `Europe/Paris` (default: your computer's). |
 | `--no-insights` | Skip `insights.html`. |
-| `--force` | Overwrite notes even if you edited them. |
+| `--force` | Overwrite notes and files you edited, and recreate notes you deleted. |
 | `-y, --yes` | Don't ask before using the export found in Downloads. |
 | `-q, --quiet` / `-v, --verbose` | Less or more output. |
 

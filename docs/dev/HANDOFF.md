@@ -58,7 +58,10 @@ first reports from users. The design aims to make them visible
 ## Conventions worth knowing
 
 - `Writer` decides "edited by the user" by comparing a note's current hash
-  with the hash recorded in `.convoviz/state.json`.
+  with the hash recorded in `.convoviz/state.json`. A recorded note missing
+  from its path is searched for by its `conversation_id` property (moved →
+  `pinned`, not found → `deleted` tombstone). Managed files (`index.md`,
+  `Conversations.base`, `insights.html`) have hashes under `files`.
 - `tests/golden/rich.md` is the reference rendering. Any output change shows
   up there.
 - Citation markers inside `TextBlock.text` are encoded as `\x1e0,2\x1f`

@@ -54,6 +54,7 @@ def run(tmp_path: Path, load, options: RenderOptions):
         force: bool = False,
         layout: Layout = "year",
         files: dict | None = None,
+        progress=None,
     ):
         path = write_export(
             tmp_path / "export.zip",
@@ -62,7 +63,8 @@ def run(tmp_path: Path, load, options: RenderOptions):
         )
         export, _ = load(path)
         diagnostics = Diagnostics()
-        report = Writer(out, options, diagnostics, layout=layout, force=force).write(export)
+        writer = Writer(out, options, diagnostics, layout=layout, force=force)
+        report = writer.write(export, progress=progress)
         return report, out
 
     return _run
@@ -111,6 +113,8 @@ def test_user_edits_are_kept_unless_forced(run) -> None:
     _, out = run([_conv()])
     note = out / _notes(out)[0]
     note.write_text(note.read_text() + "\nMy notes\n")
+    report, _ = run([_conv()])
+    assert (report.kept_edits, report.edited_current) == ([], 1)  # nothing newer to lose
     report, _ = run([_conv(text="changed")])
     assert report.kept_edits == ["conversations/2026/2026-01-01 Chat.md"]
     assert "My notes" in note.read_text()
@@ -194,3 +198,83 @@ def test_dates_follow_the_configured_timezone(tmp_path: Path, load, options: Ren
     tokyo = replace(options, timezone=ZoneInfo("Asia/Tokyo"))
     Writer(tmp_path / "out", tokyo, Diagnostics()).write(export)
     assert _notes(tmp_path / "out") == ["conversations/2026/2026-01-02 Chat.md"]
+
+
+def test_interrupted_run_is_resumed_without_duplicates(run) -> None:
+    conversations = [_conv(f"Chat {n}", n) for n in range(1, 5)]
+
+    def interrupt_after_two(conversation) -> None:
+        if conversation.title == "Chat 2":
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        run(conversations, progress=interrupt_after_two)
+    report, out = run(conversations)
+    assert (report.created, report.unchanged) == (2, 2)
+    assert len(_notes(out)) == 4
+
+
+def test_lost_state_adopts_notes_instead_of_duplicating(run, tmp_path: Path) -> None:
+    _, out = run([_conv("A", 1), _conv("B", 2)])
+    edited = out / "conversations/2026/2026-01-01 B.md"
+    edited.write_text(edited.read_text() + "\nmine\n")
+    (out / ".convoviz/state.json").unlink()
+    report, _ = run([_conv("A", 1), _conv("B", 2)])
+    assert len(_notes(out)) == 2
+    assert report.unchanged == 1
+    assert report.kept_edits == ["conversations/2026/2026-01-01 B.md"]
+    assert "mine" in edited.read_text()
+
+
+def test_moved_note_is_updated_where_it_is(run) -> None:
+    _, out = run([_conv()])
+    moved = out / "Projects/Trip/My chat.md"
+    moved.parent.mkdir(parents=True)
+    (out / _notes(out)[0]).rename(moved)
+    report, _ = run([_conv("Renamed in ChatGPT", text="better answer")])
+    assert report.updated == 1
+    assert _notes(out) == []
+    assert "better answer" in moved.read_text()
+    assert "Projects/Trip/My%20chat.md" in (out / "index.md").read_text()
+    report, _ = run([_conv("Renamed in ChatGPT", text="better answer")])
+    assert report.unchanged == 1
+
+
+def test_deleted_note_stays_deleted_unless_forced(run) -> None:
+    _, out = run([_conv("Keep", 1), _conv("Drop", 2)])
+    (out / "conversations/2026/2026-01-01 Drop.md").unlink()
+    report, _ = run([_conv("Keep", 1), _conv("Drop", 2)])
+    assert report.deleted_skipped == 1
+    assert _notes(out) == ["conversations/2026/2026-01-01 Keep.md"]
+    assert "Drop" not in (out / "index.md").read_text()
+    assert report.total_notes == 1
+    report, _ = run([_conv("Keep", 1), _conv("Drop", 2)], force=True)
+    assert report.created == 1
+    assert len(_notes(out)) == 2
+
+
+def test_note_in_obsidian_trash_counts_as_deleted(run) -> None:
+    _, out = run([_conv()])
+    trash = out / ".trash"
+    trash.mkdir()
+    (out / _notes(out)[0]).rename(trash / "Chat.md")
+    report, _ = run([_conv()])
+    assert report.deleted_skipped == 1
+
+
+def test_generated_files_the_user_changed_are_kept(run, tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "index.md").write_text("# My vault home\n")
+    report, _ = run([_conv()])
+    assert report.kept_files == ["index.md"]
+    assert (out / "index.md").read_text() == "# My vault home\n"
+    base = out / "Conversations.base"
+    base.write_text(base.read_text() + "  - type: cards\n    name: Mine\n")
+    report, _ = run([_conv("Other title")])
+    assert report.kept_files == ["index.md", "Conversations.base"]
+    assert "Mine" in base.read_text()
+    (out / "index.md").unlink()
+    report, _ = run([_conv()])
+    assert report.kept_files == ["Conversations.base"]
+    assert "Chat" in (out / "index.md").read_text()

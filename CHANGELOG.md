@@ -14,8 +14,10 @@ A complete rewrite for ChatGPT's 2026 export format.
   `export_manifest.json`, `.dat` attachments, nested Privacy Portal ZIPs,
   multi-part downloads, extracted folders. Several exports can be passed at once.
 - `convoviz` with no arguments finds the newest export in Downloads.
-- Incremental updates: re-running only rewrites changed conversations, moves
-  renamed ones, and never overwrites notes you edited (`--force` to override).
+- Incremental updates: re-running only rewrites changed conversations and
+  renames notes of renamed ones. Notes you edited are kept, notes you moved are
+  updated where they are, notes you deleted stay deleted, and files convoviz
+  didn't create are never overwritten (`--force` overrides edits and deletions).
 - Edited and regenerated replies are kept, folded where they branch
   (`--branches active` for the visible branch only).
 - Sources as footnotes, numbered once per conversation; Canvas documents with
