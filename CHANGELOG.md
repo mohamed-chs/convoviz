@@ -15,6 +15,8 @@ versions follow [SemVer](https://semver.org).
 - A reply's "Sources" list keeps the sources it didn't cite inline.
 - Generated images and documents that are only in the export's file library
   appear in the message that produced them, when the export kept it.
+- A warning when the export's manifest lists files that aren't there, which
+  usually means a part of a split download is missing.
 
 ### Changed
 

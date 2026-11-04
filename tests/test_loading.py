@@ -135,6 +135,7 @@ def test_inventory_manifest_and_hyphenated_names(tmp_path: Path, load) -> None:
         {"path": f"conversations-{index:03d}.json", "size_bytes": 10} for index in (2, 0, 1, 3)
     ]
     inventory.append({"path": "chat.html", "size_bytes": 1})
+    inventory.append({"path": "file_0000lost-a.dat", "size_bytes": 2_500_000})
     (path / "Export-Manifest.json").write_text(json.dumps({"export_files": inventory}))
     (path / "file-Abc123XYZ-report.dat").write_bytes(b"%PDF-1.7")
     library = [{"file_id": "file-Abc123XYZ", "file_name": "Notes.pdf", "mime_type": "x/y"}]
@@ -142,6 +143,9 @@ def test_inventory_manifest_and_hyphenated_names(tmp_path: Path, load) -> None:
     export, diagnostics = load(path)
     assert [c.title for c in export.conversations] == ["Chat 0", "Chat 1", "Chat 2"]
     assert any("conversations-003.json" in e for e in diagnostics.errors)
+    assert any(
+        "lists 2 files that are not in the export (2.5 MB)" in w for w in diagnostics.warnings
+    )
     report = export.assets.resolve("file-service://file-Abc123XYZ")
     assert report is not None
     assert report.mime == "x/y"

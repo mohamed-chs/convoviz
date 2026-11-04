@@ -154,12 +154,41 @@ def _files_from_manifest(source: ExportSource, diagnostics: Diagnostics) -> list
             )
             continue
         members.append(member)
+    _report_missing_files(source, manifest, diagnostics)
     count = entry.get("shard_count") if isinstance(entry, dict) else None
     if isinstance(count, int) and count != len(names):
         diagnostics.warn(
             f"Export manifest says {count} conversation shards but lists {len(names)}."
         )
     return members
+
+
+def _report_missing_files(
+    source: ExportSource, manifest: dict[str, Any], diagnostics: Diagnostics
+) -> None:
+    """Warn when an inventory manifest lists files (other than shards) the export lacks.
+
+    A split download lists every part's files in one manifest, so a missing part
+    shows up here as missing attachments.
+    """
+    inventory = manifest.get("export_files")
+    if not isinstance(inventory, list):
+        return
+    missing, size = 0, 0
+    for item in inventory:
+        path = item.get("path") if isinstance(item, dict) else None
+        if not isinstance(path, str) or CONVERSATION_FILE_RE.match(PurePosixPath(path).name):
+            continue
+        if source.get(path) is None and root_file(source, PurePosixPath(path).name) is None:
+            missing += 1
+            size += item["size_bytes"] if isinstance(item.get("size_bytes"), int) else 0
+    if missing:
+        amount = f" ({size / 1_000_000:.1f} MB)" if size else ""
+        diagnostics.warn(
+            f"The export manifest lists {missing} files that are not in the export{amount}. "
+            "If your download came in several parts, pass them all; their attachments "
+            "will show as missing otherwise."
+        )
 
 
 def iter_raw_conversations(
