@@ -24,6 +24,9 @@ versions follow [SemVer](https://semver.org).
   with the dates it was in use and the last conversation that used it.
 - The final version of each Canvas document is also saved as its own file in
   `canvas/` (`.md`, `.py`, `.html`, …), linked from the note.
+- A config file left over from convoviz 0.x gets a message saying how to
+  replace it, and `convoviz config init --force` keeps the replaced file as
+  `config.toml.bak`.
 
 ### Changed
 

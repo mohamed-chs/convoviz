@@ -118,3 +118,17 @@ def test_config_commands(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert (tmp_path / "cfg/config.toml").exists()
     assert _run(["config", "init"]) == 1
     assert _run(["config", "init", "--force"]) == 0
+
+
+def test_old_config_file_explains_the_upgrade(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "cfg/config.toml"
+    config.parent.mkdir()
+    old = 'output_folder = "~/Documents/ChatGPT-Data"\noutputs = ["markdown"]\n[wordcloud]\n'
+    config.write_text(old)
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "out")]) == 2
+    assert "convoviz 0.x config file" in capsys.readouterr().err
+    assert _run(["config", "init", "--force"]) == 0
+    assert (tmp_path / "cfg/config.toml.bak").read_text() == old
+    assert _run([str(_export(tmp_path)), "-o", str(tmp_path / "out")]) == 0

@@ -85,6 +85,10 @@ class Config:
 
 
 _TOP_KEYS = frozenset({"output", "layout", "insights", "ignored_words"})
+# Settings that only existed in 0.x config files.
+_LEGACY_KEYS = frozenset(
+    {"output_folder", "folder_organization", "outputs", "conversation", "wordcloud", "graph"}
+)
 
 
 def load_config(path: Path | None = None) -> Config:
@@ -103,6 +107,12 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
     def fail(message: str) -> ConfigError:
         return ConfigError(f"{path}: {message}")
 
+    if set(data) & _LEGACY_KEYS and not set(data) & {*_TOP_KEYS, "markdown"}:
+        raise fail(
+            "this is a convoviz 0.x config file, and the settings changed in 1.0. "
+            "Run `convoviz config init --force` to replace it (the old file is kept "
+            "next to it as config.toml.bak)."
+        )
     unknown = set(data) - {*_TOP_KEYS, "markdown"}
     if unknown:
         raise fail(f"unknown setting(s): {', '.join(sorted(unknown))}")

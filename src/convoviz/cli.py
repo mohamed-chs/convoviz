@@ -214,12 +214,16 @@ def config_init(*, force: Annotated[bool, Parameter(negative="")] = False) -> in
     Parameters
     ----------
     force
-        Replace an existing config file.
+        Replace an existing config file (it is kept as ``config.toml.bak``).
     """
     path = config_path()
     if path.exists() and not force:
         err.print(f"[yellow]{path} already exists.[/] Use --force to replace it.")
         return 1
+    if path.exists():
+        backup = path.with_name(path.name + ".bak")
+        path.replace(backup)
+        console.print(f"Kept the old file as {backup}")
     write_default_config(path)
     console.print(f"Created {path}")
     return 0
