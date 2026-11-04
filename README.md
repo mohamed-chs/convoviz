@@ -1,278 +1,151 @@
-<p align="center">
-  <h1 align="center">Convoviz</h1>
-  <p align="center"><code>uv tool install "convoviz[viz]"</code></p>
-  <p align="center">
-    Convert your ChatGPT history into clean, readable Markdown (text files).
-  </p>
-  <p align="center"><strong>
-    Perfect for archiving, local search, or use with note-taking apps like Obsidian.
-  </strong></p>
-  <p align="center">
-    Visualize your data with word clouds and usage graphs.
-  </p>
-</p>
+# convoviz
 
-<p align="center">
-  <a href="https://pypi.org/project/convoviz/"><img src="https://img.shields.io/pypi/v/convoviz?style=for-the-badge&logo=python&logoColor=white" alt="PyPI Version"></a>
-  <a href="https://github.com/mohamed-chs/convoviz/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/convoviz?style=for-the-badge" alt="License"></a>
-  <a href="https://pepy.tech/projects/convoviz"><img src="https://img.shields.io/pepy/dt/convoviz?style=for-the-badge&color=blue" alt="Downloads"></a>
-  <a href="https://github.com/mohamed-chs/convoviz/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mohamed-chs/convoviz/ci.yml?style=for-the-badge&logo=github&label=CI" alt="CI Status"></a>
-</p>
+Turn your ChatGPT data export into a folder of Markdown notes you own, plus a page of charts about how you've used ChatGPT.
 
----
+- **One readable note per conversation.** Each note has its properties (dates, models, message count), your prompts and the answers, and its sources as footnotes. Reasoning, code and tool output are folded away. Edited and regenerated replies are kept too, folded at the point where they branch.
+- **Works with today's exports.** That includes split exports (`conversations-000.json` …), attachments stored as `.dat` files, ZIPs nested inside ZIPs, and multi-part downloads. Unknown content is kept as plain text and reported, never dropped silently.
+- **Safe to re-run.** Run it again on a newer export and only changed conversations are rewritten. Notes you've edited are never overwritten (unless you pass `--force`).
+- **Made for [Obsidian](https://obsidian.md)**, and readable anywhere. The notes are plain CommonMark/GFM, so they also render on GitHub, in VS Code, or as text. The archive comes with a `Conversations.base` table view.
+- **Private.** Everything runs on your computer, and nothing is sent anywhere.
 
-## Features
+## Quick start
 
-|  |  |
-|---------|-------------|
-| **Markdown Export** | Clean, well-formatted Markdown with optional YAML headers |
-| **Inline Images** | Media attachments rendered directly in your Markdown files |
-| **Citations** | Web search results and source links accurately preserved |
-| **Word Clouds** | Visual breakdowns of your most-used words and phrases |
-| **Usage Graphs** | Bar plots and charts showing your conversation patterns |
-| **Canvas Support** | OpenAI "Canvas" documents extracted as standalone files (`.py`, `.html`, etc.) |
-| **Custom Instructions** | User/Model system messages exported to `custom_instructions.json` |
+**1. Get your export.** In ChatGPT, go to **Settings → Data controls → Export data**. OpenAI emails you a download link, and the ZIP lands in your Downloads folder.
 
-> see word cloud examples in the [`demo/`](https://github.com/mohamed-chs/convoviz/tree/main/demo) folder!
+**2. Install convoviz.** It needs [uv](https://docs.astral.sh/uv/), which also takes care of Python:
 
----
-
-## How to Use
-
-### Step 1: Export Your ChatGPT Data
-
-1. Sign in at [chatgpt.com](https://chatgpt.com)
-2. Navigate to: **Profile Name** (bottom left) → **Settings** → **Data controls** → **Export**
-3. Click **Confirm export**
-4. Wait for the email from OpenAI, then download the `.zip` file
-
-<details>
-<summary><strong>Alternative: Use the Direct Export Script</strong></summary>
-
-If you want to grab recent conversations quickly or bypass the official export wait, use the direct export script.
-
-1.  Follow the instructions in [`js/HOW_TO_USE.md`](https://github.com/mohamed-chs/convoviz/blob/main/js/HOW_TO_USE.md) to download your recent data as a `.zip` file.
-2.  **Run Convoviz normally.**
-3.  **Smart Discovery:** If you have a `convoviz_export.zip` in your `Downloads`, Convoviz will ask to merge it.
-4.  **Additive & Smart:** You can combine multiple runs into the same folder. Convoviz uses identity-based overwriting to update existing chats without creating duplicates!
-</details>
-
----
-
-### Step 2: Install Convoviz
-
-### Quick Install
-
-Run one of the commands below to install **everything** you need automatically.
-
-#### 🍎 macOS / 🐧 Linux
-1. Open `Terminal`.
-   - **macOS**: Press `Cmd + Space`, type "Terminal", and hit Enter.
-   - **Linux**: Press `Ctrl + Alt + T`, or search "Terminal" in your app menu.
-2. Copy and paste this command:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/mohamed-chs/convoviz/main/install.sh | bash
+```sh
+uv tool install convoviz
 ```
 
-#### 🪟 Windows
-1. Open `PowerShell`.
-   - Press the `Windows` key, type "PowerShell", and hit Enter.
-2. Copy and paste this command:
+<details>
+<summary>No uv yet? One-line installers</summary>
+
+macOS / Linux:
+
+```sh
+curl -LsSf https://raw.githubusercontent.com/mohamed-chs/convoviz/main/install.sh | sh
+```
+
+Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/mohamed-chs/convoviz/main/install.ps1 | iex
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/mohamed-chs/convoviz/main/install.ps1 | iex"
 ```
 
-<details>
-<summary><strong>Alternative: Install with pip</strong></summary>
-
-If you prefer using `pip` directly:
-
-```bash
-# Create a virtual environment (keeps your system Python clean)
-python3 -m venv .venv
-
-# Activate the virtual environment
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install convoviz with visualization extras
-pip install "convoviz[viz]"
-```
-
+Both install uv if it's missing, then convoviz.
 </details>
 
----
+**3. Run it.**
 
-### Step 3: Run Convoviz
-
-The simplest way is to run this in your terminal and follow the interactive prompts:
-
-```bash
+```sh
 convoviz
 ```
 
-Or, provide arguments directly to skip the prompts:
+convoviz finds the newest export in your Downloads folder, asks you to confirm, and writes the archive to `~/Documents/ChatGPT`. To choose the input or output yourself:
 
-```bash
-convoviz --input path/to/your/export.zip --output path/to/output/folder
+```sh
+convoviz ~/Downloads/chatgpt-export.zip -o ~/Notes/ChatGPT
 ```
+
+You can also pass an extracted folder or a bare `conversations.json`. If OpenAI split your export into `…-part-0001.zip`, `…-part-0002.zip`, …, pass any one of them and the other parts are picked up automatically.
+
+## What you get
+
+```
+ChatGPT/
+├── conversations/
+│   └── 2026/
+│       └── 2026-03-14 Planning a trip to Kyoto.md
+├── attachments/            your uploads and generated images
+├── index.md                every conversation, newest first
+├── Conversations.base      a sortable table in Obsidian
+└── insights.html           charts: activity, hours, models, features, topics
+```
+
+A note looks like this:
+
+```markdown
+---
+title: "Planning a trip to Kyoto"
+created: 2026-03-14T09:30:12
+updated: 2026-03-14T10:02:45
+source: "chatgpt"
+conversation_id: "67d3…"
+url: "https://chatgpt.com/c/67d3…"
+models:
+  - "gpt-5-5-thinking"
+messages: 6
+tags:
+  - "chatgpt"
+---
+
+# Planning a trip to Kyoto
+
+## You · 2026-03-14 09:30
+
+Three days in Kyoto in April — what should I not miss?
+
+## ChatGPT · 2026-03-14 09:31
 
 <details>
-<summary><strong>Command Line Options</strong></summary>
-
-#### Selective Output
-
-By default, all outputs (Markdown, graphs, word clouds) are generated. Use `--outputs` to pick specific ones:
-
-```bash
-convoviz --input export.zip --outputs markdown --outputs graphs
-```
-
-Available options: `markdown`, `graphs`, `wordclouds`
-
-> In interactive mode, you'll be prompted to choose which outputs to generate.
-
-#### Other Useful Flags
-
-| Flag | Description |
-|------|-------------|
-| `--zip` / `-z` | Alias for `--input` (for convenience) |
-| `--timestamp` / `-t` | Prepend conversation timestamp to the filename (e.g., `2024-03-21_15-30-05 - Title.md`) |
-| `--no-interactive` | Force non-interactive mode |
-| `--flat` | Put all Markdown files in a single folder (instead of organizing by date) |
-| `--config PATH` | Use a specific TOML config file (otherwise the user config is used if present) |
-| `--verbose` / `-v` | Enable detailed logging (use `-vv` for debug logs) |
-| `--log-file PATH` | Specify a custom log file location |
-| `--quiet` / `-q` | Reduce console output (still logs to file) |
-
-For a complete list of options:
-
-```bash
-convoviz --help
-```
-
+<summary>Thought for 8s</summary>
+…
 </details>
 
----
+Fushimi Inari early in the morning, before the crowds[^1]. …
 
-<details>
-<summary><strong>⚙️ Configuration</strong></summary>
-
-Convoviz supports a TOML config file. Defaults are bundled with the package and can be copied into your user config directory.
-
-Generate a user config file:
-
-```bash
-convoviz config init
+[^1]: [Fushimi Inari Taisha](https://inari.jp/en/) — inari.jp
 ```
 
-Default user config locations:
-1. Linux: `~/.config/convoviz/config.toml`
-2. macOS: `~/Library/Application Support/convoviz/config.toml`
-3. Windows: `%APPDATA%\\convoviz\\config.toml`
+`insights.html` is a single self-contained file. Open it in any browser and it works offline, in light and dark mode.
 
-Use a custom config path:
+## Updating your archive
 
-```bash
-convoviz --config path/to/config.toml
+Request a new export whenever you like and run convoviz again on the same output folder:
+
+- new and changed conversations are written, and unchanged ones are left alone;
+- a renamed conversation's note is moved to its new name;
+- **notes you've edited are kept as they are**, and the summary lists them (`--force` replaces them);
+- conversations missing from the new export are kept, since exports are sometimes incomplete.
+
+convoviz keeps track of this in `.convoviz/state.json` inside the output folder.
+
+## Options
+
+| Flag | |
+|---|---|
+| `-o, --output PATH` | Output folder (default `~/Documents/ChatGPT`). |
+| `--layout year\|flat` | One folder per year (default) or a single folder. |
+| `--branches all\|active` | Keep edited/regenerated alternatives folded (default), or only the branch you last viewed. |
+| `--timezone ZONE` | Time zone for dates, e.g. `Europe/Paris` (default: your computer's). |
+| `--no-insights` | Skip `insights.html`. |
+| `--force` | Overwrite notes even if you edited them. |
+| `-y, --yes` | Don't ask before using the export found in Downloads. |
+| `-q, --quiet` / `-v, --verbose` | Less or more output. |
+
+To make settings permanent, run `convoviz config init` and edit the file it creates. `convoviz config path` shows where it is. In that file you can also rename the turn labels ("You", "ChatGPT"), hide timestamps, reasoning or tool output, and set the tags added to every note.
+
+## Something looks wrong?
+
+ChatGPT's export format is undocumented and changes often. When convoviz meets something new, the end-of-run summary says so. To report it:
+
+```sh
+convoviz inspect --json ~/Downloads/chatgpt-export.zip
 ```
 
-Markdown flavor options in config:
-1. `standard` (default)
-2. `obsidian` (collapsible callouts for reasoning content)
-
-Markdown render order (config):
-1. `active` (default, current branch)
-2. `full` (all DAG branches)
-
-Markdown timestamps can be toggled with `conversation.markdown.show_timestamp`.
-
-Word clouds can be limited to your messages by setting `wordcloud.include_assistant_text = false`.
-Word cloud layouts are deterministic by default; set `wordcloud.random_state = ""` to disable.
-
-YAML frontmatter titles are sanitized; the original title is preserved in `aliases` when it changes.
-
-</details>
-
----
-
-### Step 4: Check the Output
-
-After running the script, head to your output folder (defaults to `Documents/ChatGPT-Data` if you didn't change it) to see:
-- Neatly formatted Markdown files
-- Visualizations and graphs
-- Extracted Canvas documents (if any)
-- User "Custom Instructions" (`custom_instructions.json`)
-
-If you've had a great experience, consider giving the project a ⭐ **star**! It keeps me motivated and helps others discover it!
-
-## Export to PDF
-
-Try [`convpdf`](https://github.com/mohamed-chs/convpdf) to convert markdown files to PDFs.
-
-Example:
-
-```bash
-# install with npm
-npm -g install convpdf
-
-# go to output dir (defaults to ~/Documents/ChatGPT-Data/)
-cd ~/Documents/ChatGPT-Data
-
-# run (add '-j 20' for faster conversion)
-convpdf Markdown -o PDF
-```
-
-![wordcloud example](https://raw.githubusercontent.com/mohamed-chs/convoviz/main/demo/wordcloud-example.png)
-
----
-
-## 💌 Share Your Feedback!
-
-I hope you find this tool useful. I'm continuously looking to improve on this, but I need your help for that.
-
-Whether you're a tech wizard or you're new to all this, I'd love to hear about your journey with the tool. Found a quirk? Have a suggestion? Or just want to send some good vibes? I'm all ears!
-
-👉 **[Open an Issue](https://github.com/mohamed-chs/convoviz/issues)**
-
----
-
-## Contributing
-
-Interested in contributing? Check out the **[Contributing Guide](https://github.com/mohamed-chs/convoviz/blob/main/CONTRIBUTING.md)** for development setup, code style, and how to submit a pull request.
-
----
+This prints a description of the export's **structure only**: field names, content types and counts. It never includes titles, message text, links, file names or ids. Paste it into a [bug report](https://github.com/mohamed-chs/convoviz/issues/new?template=bug_report.yml). Please don't attach your export itself.
 
 ## Notes
 
-<details>
-<summary><strong>Offline</strong></summary>
+- **Business, Enterprise and Edu workspaces** can't use ChatGPT's export feature. That's an OpenAI limitation, and convoviz needs the export.
+- **Images missing?** Some 2026 exports leave out generated images or library files on OpenAI's side. convoviz puts a placeholder in the note and counts what's missing in the summary.
+- **Custom instructions and memories** are not written into notes.
 
-Word clouds use NLTK stopwords. If you're offline and NLTK data isn't installed yet, pre-download it:
+## Contributing
 
-```bash
-python -c "import nltk; nltk.download('stopwords')"
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md). For how the code fits together, see [docs/dev/architecture.md](docs/dev/architecture.md). What's known about the export format is in [docs/dev/export-format.md](docs/dev/export-format.md).
 
-**NOTE:** The install script already handles this, so you can immediately go offline after running it.
+## License
 
-</details>
-
-<details>
-<summary><strong>About This Project</strong></summary>
-
-This is just a small thing I coded to help me see my convos in beautiful markdown. It was originally built with [Obsidian](https://obsidian.md/) (my go-to note-taking app) in mind, but the default output is standard Markdown.
-
-I wasn't a fan of the clunky, and sometimes paid, browser extensions.
-
-It was also a great opportunity to learn more about Python and type annotations. I had mypy, pyright, and ruff all on strict mode, 'twas fun.
-
-</details>
-
-<details>
-<summary><strong>Direct Export (Experimental)</strong></summary>
-
-There's also a JavaScript export flow under `js/` for grabbing additional conversation data directly from the browser outside the official ZIP export. This is experimental.
-
-</details>
+MIT
