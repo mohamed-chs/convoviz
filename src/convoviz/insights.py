@@ -196,7 +196,7 @@ def _calendar(stats: Stats) -> str:
     table = _table(["Month", "Prompts"], [(m, stats.per_month.get(m, 0)) for m in stats.months()])
     return _section(
         "Activity",
-        "Prompts sent per day. Darker means busier.",
+        "Prompts sent per day. Stronger color means busier.",
         "".join(blocks) + scale,
         table,
     )
@@ -424,7 +424,8 @@ def _features(stats: Stats) -> str:
     for key, label in FEATURES:
         count = stats.features.get(key, 0)
         share = 100 * count / stats.conversations
-        rows.append((label, count, f" · {_f(share)}%"))
+        if count:
+            rows.append((label, count, f" · {_f(share)}%"))
     rows.sort(key=lambda r: -r[1])
     chart = _hbars(rows, "Conversations using each feature")
     table = _table(
