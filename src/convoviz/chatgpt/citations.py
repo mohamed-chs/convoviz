@@ -2,7 +2,7 @@ r"""Resolve ChatGPT's inline citation markers into neutral source references.
 
 Assistant text carries private-use "widget" markers::
 
-     KIND  PAYLOAD ( PAYLOAD)* 
+    \ue200 KIND \ue202 PAYLOAD (\ue202 PAYLOAD)* \ue201
 
 ``cite`` markers point at search results (``turn0search3``), ``entity`` markers
 wrap a JSON ``["type", "name", ...]``, and so on. ``metadata.content_references``
@@ -27,9 +27,9 @@ from convoviz.model import CITE_CLOSE, CITE_OPEN, Source, TextBlock
 if TYPE_CHECKING:
     from convoviz.diagnostics import Diagnostics
 
-_OPEN, _SEP, _CLOSE = "", "", ""
-_MARKER_RE = re.compile(r"([A-Za-z_]+)((?:[^]*)*)")
-_PUA_RE = re.compile(r"[-]")
+_OPEN, _SEP, _CLOSE = "\ue200", "\ue202", "\ue201"
+_MARKER_RE = re.compile(r"\ue200([A-Za-z_]+)((?:\ue202[^\ue200\ue201]*)*)\ue201")
+_PUA_RE = re.compile(r"[\ue200-\ue2ff]")
 _BARE_CITE_RE = re.compile(r"cite(?:turn\d+[a-z_]+\d+(?:L\d+-L\d+)?)+")
 _LEGACY_PLACEHOLDER_RE = re.compile(r"【\d+(?:†[^】]{0,80})?】")
 _TOKEN_RE = re.compile(r"turn\d+[a-z_]+\d+")
@@ -81,7 +81,7 @@ def render_text(text: str, meta: dict[str, Any], diagnostics: Diagnostics) -> Te
     if not text:
         return TextBlock(text)
     sources = _Sources()
-    text = text.replace("", "").replace("", "")
+    text = text.replace("\ue203", "").replace("\ue204", "")
 
     refs = meta.get("content_references")
     if isinstance(refs, list) and refs:

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 # Only identifier-like strings are ever reported.
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:\-]{0,63}$")
-_MARKER_KIND_RE = re.compile(r"([A-Za-z_]{1,32})")
+_MARKER_KIND_RE = re.compile(r"\ue200([A-Za-z_]{1,32})\ue202")
 
 
 def _ident(value: object) -> str:

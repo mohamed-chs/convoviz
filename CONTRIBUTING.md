@@ -30,6 +30,9 @@ macOS.
   what you need with `tests/factory.py` (`ConversationBuilder`, `write_export`).
 - A new export quirk means a test reproducing it (from a synthetic export), a
   change in `chatgpt/`, and a line in `docs/dev/export-format.md` with a source.
+- `tests/test_fuzz.py` feeds random export-shaped JSON through parsing,
+  rendering and statistics. A parser change deserves a longer hunt:
+  `HYPOTHESIS_PROFILE=long uv run pytest tests/test_fuzz.py tests/test_markdown.py`.
 - Changes to the Markdown output show up in `tests/golden/rich.md`. Regenerate
   it with `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py` and check the
   diff reads well.
