@@ -5,6 +5,7 @@ Layout::
     <output>/
       conversations/2026/2026-03-14 Title.md
       attachments/…
+      canvas/Title (1a2b3c4d).py   the final version of each Canvas document
       index.md
       Conversations.base
       Custom instructions.md   (when the export recorded any)
@@ -24,8 +25,8 @@ of what convoviz last wrote there. On a re-run with a newer export:
   run, a deleted ``.convoviz`` folder) is adopted rather than duplicated;
 * conversations missing from the new export are left alone (exports can be partial).
 
-``index.md``, ``Conversations.base``, ``Custom instructions.md`` and ``insights.html``
-are tracked the same way: a copy the user changed, or a file convoviz didn't
+``index.md``, ``Conversations.base``, ``Custom instructions.md``, ``insights.html``
+and the Canvas files are tracked the same way: a copy the user changed, or a file convoviz didn't
 create, is left alone.
 """
 
@@ -48,7 +49,9 @@ from convoviz.assets import AssetStore
 from convoviz.fsnames import safe_stem
 from convoviz.markdown import escape_inline
 from convoviz.render import (
+    CANVAS_DIR,
     INSTRUCTIONS_PAGE,
+    canvas_files,
     local_time,
     render_conversation,
     render_instructions,
@@ -325,8 +328,13 @@ class Writer:
             return
 
         note = render_conversation(
-            conversation, self.options, lambda a: assets.link_from(target, a)
+            conversation,
+            self.options,
+            lambda a: assets.link_from(target, a),
+            lambda path: Path(os.path.relpath(self.output / path, target.parent)).as_posix(),
         )
+        for path, document in canvas_files(conversation).items():
+            self._write_managed(path, (document.content.rstrip("\n") + "\n").encode())
         data = note.text.encode()
         digest = _sha(data)
         if previous is not None and not previous.deleted:
@@ -484,13 +492,13 @@ _ID_LINE_RE = re.compile(
 def _find_notes(output: Path) -> dict[str, list[str]]:
     """Every Markdown note under ``output`` that carries a ``conversation_id`` property.
 
-    Hidden folders (``.convoviz``, ``.obsidian``, Obsidian's ``.trash``) and
-    ``attachments`` are skipped. Only the first few KB of each file are read.
+    Hidden folders (``.convoviz``, ``.obsidian``, Obsidian's ``.trash``),
+    ``attachments`` and ``canvas`` are skipped. Only the first few KB of each file are read.
     """
     found: dict[str, list[str]] = defaultdict(list)
     for folder, subfolders, names in os.walk(output):
         subfolders[:] = sorted(
-            d for d in subfolders if not d.startswith(".") and d != "attachments"
+            d for d in subfolders if not d.startswith(".") and d not in ("attachments", CANVAS_DIR)
         )
         for name in sorted(names):
             if not name.endswith(".md"):

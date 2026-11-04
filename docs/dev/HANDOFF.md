@@ -59,7 +59,11 @@ first reports from users. The design aims to make them visible
   archive from older exports but missing from the new one aren't counted.
 - **Canvas.** Every edit renders the whole document again (in an open
   `<details>`). For heavily edited documents, showing only the final version
-  per turn might read better.
+  per turn might read better. The final version on the active branch is also
+  saved under `canvas/` (`render.canvas_files`, named by document title plus
+  the conversation id so names are stable). Files of conversations whose
+  document was renamed aren't cleaned up; titles of Canvas documents don't
+  change in practice.
 - **Custom instructions** go to `Custom instructions.md` (one section per
   distinct version, newest first), written by the Writer as a managed file.
   Memory snapshots (`model_editable_context`, reportedly `model_set_context`

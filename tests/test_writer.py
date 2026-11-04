@@ -321,3 +321,34 @@ def test_custom_instructions_page(run) -> None:
 def test_no_custom_instructions_page_without_instructions(run) -> None:
     _, out = run([_conv()])
     assert not (out / "Custom instructions.md").exists()
+
+
+def test_canvas_documents_are_saved_as_files(run) -> None:
+    b = ConversationBuilder(title="Script", conversation_id="1a2b3c4d-0000-4000-8000-000000000009")
+    b.user("write a script")
+    b.add(
+        "assistant",
+        {
+            "content_type": "code",
+            "text": json.dumps({"name": "Tool: v1", "type": "code/python", "content": "x = 1"}),
+        },
+        recipient="canmore.create_textdoc",
+    )
+    b.user("rename x")
+    update = {"updates": [{"pattern": "x", "replacement": "y", "multiple": True}]}
+    b.add(
+        "assistant",
+        {"content_type": "code", "text": json.dumps(update)},
+        recipient="canmore.update_textdoc",
+    )
+    _, out = run([b.build()])
+    saved = out / "canvas" / "Tool v1 (1a2b3c4d).py"
+    assert saved.read_text() == "y = 1\n"
+    note = (out / _notes(out)[0]).read_text()
+    assert note.count("Final version saved as") == 1
+    assert "[Tool v1 (1a2b3c4d).py](../../canvas/Tool%20v1%20%281a2b3c4d%29.py)" in note
+
+    saved.write_text("y = 2  # mine\n")
+    report, _ = run([b.build()])
+    assert saved.read_text() == "y = 2  # mine\n"  # the user's edit is kept
+    assert report.kept_files == ["canvas/Tool v1 (1a2b3c4d).py"]

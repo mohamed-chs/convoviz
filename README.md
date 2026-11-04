@@ -58,6 +58,7 @@ ChatGPT Archive/
 │   └── 2026/
 │       └── 2026-03-14 Planning a trip to Kyoto.md
 ├── attachments/            your uploads and generated images
+├── canvas/                 the final version of each Canvas document (.md, .py, …)
 ├── index.md                every conversation, newest first
 ├── Custom instructions.md  each version of your custom instructions
 ├── Conversations.base      a sortable table in Obsidian

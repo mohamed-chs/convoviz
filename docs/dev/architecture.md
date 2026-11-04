@@ -23,7 +23,7 @@ input paths ─► source.py ─► chatgpt/ (adapter) ─► model.py ─┬─
 | `markdown.py` | Code-aware text utilities: transform prose without touching code, close fences, math delimiters, escaping. |
 | `fsnames.py` | Safe file names that keep any script (Cyrillic, CJK, emoji…). |
 | `assets.py` | Copies attachments under readable names with real extensions (magic-byte sniffing for `.dat`). |
-| `writer.py` | Output layout and the incremental `state.json` logic. Writes `index.md` and `Conversations.base`. |
+| `writer.py` | Output layout and the incremental `state.json` logic. Writes `index.md`, `Conversations.base`, `Custom instructions.md` and the `canvas/` files. |
 | `stats.py` / `insights.py` | Usage aggregates → a self-contained HTML page of hand-built SVG charts. |
 | `census.py` | The anonymous structure report behind `convoviz inspect`. |
 | `config.py` / `cli.py` | TOML settings (validated, with clear errors) and the cyclopts CLI. |
@@ -65,7 +65,7 @@ input paths ─► source.py ─► chatgpt/ (adapter) ─► model.py ─┬─
   the outline.
 - Folded parts use `<details>` with a blank line after `<summary>`, so the
   Markdown inside renders (CommonMark HTML-block rule). Canvas documents are
-  `<details open>`.
+  `<details open>`, and the final version links to its file under `canvas/`.
 - Citations become footnotes numbered once per conversation, de-duplicated by
   URL.
 - `\( \)` / `\[ \]` become `$` / `$$`. `$5` is escaped. Raw HTML in user text is

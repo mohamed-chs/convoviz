@@ -16,6 +16,7 @@ from urllib.parse import quote
 
 import orjson
 
+from convoviz.fsnames import safe_stem
 from convoviz.markdown import (
     blockquote,
     close_fences,
@@ -77,10 +78,18 @@ def render_conversation(
     conversation: Conversation,
     options: RenderOptions,
     resolve: Callable[[Attachment], str | None],
+    link: Callable[[str], str] | None = None,
 ) -> Note:
-    """The complete note: properties, title, turns, footnotes."""
+    """The complete note: properties, title, turns, footnotes.
+
+    ``link`` turns a path relative to the archive root into a link from the
+    note; without it, Canvas documents aren't linked to their saved files.
+    """
     thread = linearize(conversation, include_forks=options.branches == "all")
-    renderer = _Renderer(options, resolve)
+    canvases = (
+        {block: link(path) for path, block in canvas_files(conversation).items()} if link else {}
+    )
+    renderer = _Renderer(options, resolve, canvases)
     body = renderer.thread(thread, nested=False)
     parts = [
         frontmatter(conversation, thread, options),
@@ -234,9 +243,15 @@ def _merge_reasoning(messages: list[Message]) -> list[tuple[Message, Block]]:
 
 
 class _Renderer:
-    def __init__(self, options: RenderOptions, resolve: Callable[[Attachment], str | None]) -> None:
+    def __init__(
+        self,
+        options: RenderOptions,
+        resolve: Callable[[Attachment], str | None],
+        canvases: dict[DocumentBlock, str] | None = None,
+    ) -> None:
         self.options = options
         self.resolve = resolve
+        self.canvases = canvases or {}
         self.footnotes: list[Source] = []
         self._footnote_ids: dict[tuple[str | None, str | None], int] = {}
 
@@ -409,10 +424,63 @@ class _Renderer:
         else:
             body = self.prose(block.content)
         label = f"{block.kind}: {block.title}" if block.title else block.kind
+        if saved := self.canvases.get(block):
+            name = escape_inline(saved.rsplit("/", 1)[-1])
+            body += f"\n\n*Final version saved as [{name}]({_link_target(saved)}).*"
         return _details(f"🗎 {label}{version}", body, open_=True)
 
 
 # --------------------------------------------------------------------------- pages
+
+CANVAS_DIR = "canvas"
+_CANVAS_EXTENSIONS = {
+    "document": ".md",
+    "document/markdown": ".md",
+    "text/plain": ".txt",
+    "code/python": ".py",
+    "code/javascript": ".js",
+    "code/typescript": ".ts",
+    "code/react": ".jsx",
+    "code/html": ".html",
+    "code/css": ".css",
+    "code/json": ".json",
+    "code/bash": ".sh",
+    "code/shell": ".sh",
+    "code/sql": ".sql",
+    "code/java": ".java",
+    "code/kotlin": ".kt",
+    "code/swift": ".swift",
+    "code/go": ".go",
+    "code/rust": ".rs",
+    "code/ruby": ".rb",
+    "code/php": ".php",
+    "code/c": ".c",
+    "code/cpp": ".cpp",
+    "code/csharp": ".cs",
+    "code/r": ".r",
+    "code/yaml": ".yaml",
+    "code/latex": ".tex",
+}
+
+
+def canvas_files(conversation: Conversation) -> dict[str, DocumentBlock]:
+    """The final version of each Canvas document on the active branch, by file path.
+
+    Paths are relative to the archive root and stable across runs: the
+    document's title plus the conversation id, so they don't collide.
+    """
+    latest: dict[str, DocumentBlock] = {}
+    for message in linearize(conversation, include_forks=False).messages():
+        for block in message.blocks:
+            if isinstance(block, DocumentBlock) and block.kind == "Canvas":
+                latest[block.title] = block
+    suffix = conversation.id.replace("-", "")[:8]
+    files: dict[str, DocumentBlock] = {}
+    for block in latest.values():
+        ext = _CANVAS_EXTENSIONS.get(block.doc_type or "document", ".txt")
+        files[f"{CANVAS_DIR}/{safe_stem(block.title)} ({suffix}){ext}"] = block
+    return files
+
 
 INSTRUCTIONS_PAGE = "Custom instructions.md"
 _INSTRUCTION_FIELDS = (

@@ -22,6 +22,8 @@ versions follow [SemVer](https://semver.org).
   leaves out words of your choice.
 - `Custom instructions.md` lists every version of your custom instructions,
   with the dates it was in use and the last conversation that used it.
+- The final version of each Canvas document is also saved as its own file in
+  `canvas/` (`.md`, `.py`, `.html`, …), linked from the note.
 
 ### Changed
 
