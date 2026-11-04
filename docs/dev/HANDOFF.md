@@ -9,8 +9,15 @@ where to go next. Keep this describing the present, not the history (that is
 A ground-up rewrite (branch `overhaul`) for the 2026 export format. The full
 pipeline is in place and tested on synthetic exports: reading (all known
 packagings), parsing, Markdown rendering, incremental writing, attachments,
-the index/Bases files, insights, `inspect`, config and CLI. The quality gate
-(ruff, ty, pytest) is green on Python 3.12 and 3.15.
+the index/Bases files, insights (charts and word clouds), `inspect`, config
+and CLI. The quality gate (ruff, ty, pytest) is green on Python 3.12 and 3.15,
+and the fuzz tests pass the `long` Hypothesis profile.
+
+Performance: a synthetic 6,000-conversation, 344 MB export takes about 27 s and
+600 MB of memory (parsing, rendering and stats in roughly equal parts). Re-runs
+take about as long, since every conversation is rendered to compare hashes.
+Skipping unchanged conversations by fingerprinting the raw JSON would make
+re-runs much faster if that ever matters.
 
 ## Biggest risk
 
@@ -36,6 +43,12 @@ first reports from users. The design aims to make them visible
 - **Deep research / agent mode.** `research_kickoff_tool` and other agent
   plumbing is hidden. Whether the final report always arrives as a normal
   assistant message is unverified.
+- **Message `channel`.** 2026 reports mention `channel: "commentary"` vs
+  `"final"` on assistant messages. Both are rendered as normal text for now.
+  `inspect` counts `role:channel` pairs, so a report will show whether
+  commentary should be folded like reasoning.
+- **Insights cover the current export only.** Conversations kept in the
+  archive from older exports but missing from the new one aren't counted.
 - **Canvas.** Every edit renders the whole document again (in an open
   `<details>`). For heavily edited documents, showing only the final version
   per turn might read better.
