@@ -18,12 +18,12 @@ import orjson
 from convoviz.markdown import (
     blockquote,
     close_fences,
-    convert_math,
-    escape_currency,
-    escape_html,
+    currency_escaped,
     escape_inline,
     fence_for,
+    html_escaped,
     map_prose,
+    math_to_dollars,
 )
 from convoviz.model import (
     CITE_CLOSE,
@@ -174,14 +174,11 @@ _HEADING_RE = re.compile(r"^(#{1,6})(?=[ \t])", re.MULTILINE)
 _CITE_RE = re.compile(r"[ \t]*" + re.escape(CITE_OPEN) + r"([\d,]*)" + re.escape(CITE_CLOSE))
 
 
-def _demote_headings(text: str, levels: int) -> str:
-    """Push headings below the turn headings so the note outline stays intact."""
-    if "#" not in text:
-        return text
-    return map_prose(
-        text,
-        lambda s: _HEADING_RE.sub(lambda m: "#" * min(6, len(m.group(1)) + levels), s),
-    )
+def _demoted(segment: str) -> str:
+    """Push headings below the turn headings (by two levels) so the note outline stays intact."""
+    if "#" not in segment:
+        return segment
+    return _HEADING_RE.sub(lambda m: "#" * min(6, len(m.group(1)) + 2), segment)
 
 
 def _details(summary: str, body: str, *, open_: bool = False) -> str:
@@ -322,9 +319,7 @@ class _Renderer:
         if not text.strip():
             return ""
         if message.role == "user":
-            text = escape_html(text)
-            text = escape_currency(text)
-            text = _demote_headings(text, 2)
+            text = map_prose(text, html_escaped, currency_escaped, _demoted)
             return close_fences(text).strip()
         text = self.prose(text)
         if block.sources:
@@ -333,9 +328,7 @@ class _Renderer:
 
     def prose(self, text: str) -> str:
         """Assistant-style Markdown: math delimiters, currency, headings, fences."""
-        text = escape_currency(text)
-        text = convert_math(text)
-        text = _demote_headings(text, 2)
+        text = map_prose(text, currency_escaped, math_to_dollars, _demoted)
         return close_fences(text).strip()
 
     def cite(self, ids: str, sources: tuple[Source, ...]) -> str:

@@ -388,9 +388,13 @@ STOPWORDS = frozenset(
 
 def tokenize(text: str) -> list[str]:
     """Lower-cased words of prose (code and URLs removed), stop words dropped."""
-    text = _URL_RE.sub(" ", _CODE_RE.sub(" ", strip_citations(text)))
-    words = (w.lower().replace("’", "'") for w in _WORD_RE.findall(text))
-    return [w for w in words if len(w) > 2 and w not in STOPWORDS]
+    text = strip_citations(text)
+    if "`" in text:
+        text = _CODE_RE.sub(" ", text)
+    if "://" in text:
+        text = _URL_RE.sub(" ", text)
+    text = text.lower().replace("’", "'")
+    return [w for w in _WORD_RE.findall(text) if len(w) > 2 and w not in STOPWORDS]
 
 
 def frequent_words(stats: Stats, limit: int = 90) -> list[tuple[str, int]]:

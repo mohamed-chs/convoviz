@@ -7,10 +7,13 @@ from convoviz.chatgpt.textfix import clean_assistant_text
 from convoviz.markdown import (
     close_fences,
     convert_math,
+    currency_escaped,
     escape_currency,
     escape_html,
     fence_for,
+    html_escaped,
     map_prose,
+    math_to_dollars,
     split_fenced,
 )
 
@@ -66,3 +69,61 @@ def test_close_fences_is_idempotent(text: str) -> None:
         or not split_fenced(once)[-1][0]
         or once.rstrip().endswith(("```", "~~~"))
     )
+
+
+_MARKDOWNISH = st.text(
+    alphabet=st.sampled_from(
+        ["`", "~", "\n", "a", " ", "$", "5", "\\", "(", ")", "[", "]", "<", "b"]
+    ),
+    max_size=80,
+)
+
+
+@given(_MARKDOWNISH)
+def test_one_pass_equals_the_chain_of_passes(text: str) -> None:
+    chained = convert_math(escape_currency(escape_html(text)))
+    assert map_prose(text, html_escaped, currency_escaped, math_to_dollars) == chained
+
+
+def _split_fenced_reference(text: str) -> list[tuple[bool, str]]:
+    """The straightforward line-by-line definition the fast version must match."""
+    import re
+
+    fence_re = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
+    chunks: list[tuple[bool, str]] = []
+    buffer: list[str] = []
+    fence: str | None = None
+    for line in text.split("\n"):
+        line_nl = line + "\n"
+        match = fence_re.match(line)
+        if fence is None:
+            if match and not (match.group(2)[0] == "`" and "`" in match.group(3)):
+                if buffer:
+                    chunks.append((False, "".join(buffer)))
+                buffer, fence = [line_nl], match.group(2)
+            else:
+                buffer.append(line_nl)
+        else:
+            buffer.append(line_nl)
+            if (
+                match
+                and match.group(2)[0] == fence[0]
+                and len(match.group(2)) >= len(fence)
+                and not match.group(3).strip()
+            ):
+                chunks.append((True, "".join(buffer)))
+                buffer, fence = [], None
+    if buffer:
+        chunks.append((fence is not None, "".join(buffer)))
+    # Undo the newline added to the last line.
+    if chunks:
+        is_code, last = chunks[-1]
+        chunks[-1] = (is_code, last[:-1])
+        if not chunks[-1][1]:
+            chunks.pop()
+    return chunks
+
+
+@given(st.text(alphabet=st.sampled_from(["`", "~", "\n", "a", " "]), max_size=80))
+def test_split_fenced_matches_reference(text: str) -> None:
+    assert split_fenced(text) == _split_fenced_reference(text)

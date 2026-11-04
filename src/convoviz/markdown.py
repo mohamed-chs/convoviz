@@ -14,41 +14,37 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 _FENCE_RE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
+_FENCE_LINE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})([^\n]*)$", re.MULTILINE)
 
 
 def split_fenced(text: str) -> list[tuple[bool, str]]:
     """Split into (is_code, chunk) by fenced code blocks; unclosed fences run to the end."""
+    if "```" not in text and "~~~" not in text:
+        return [(False, text)] if text else []
     chunks: list[tuple[bool, str]] = []
-    buffer: list[str] = []
+    start = 0
     fence: str | None = None
-    for line in text.splitlines(keepends=True):
-        match = _FENCE_RE.match(line.rstrip("\r\n"))
+    for match in _FENCE_LINE_RE.finditer(text):
+        marker, info = match.group(1), match.group(2).rstrip("\r")
         if fence is None:
-            if match and not (match.group(2)[0] == "`" and "`" in match.group(3)):
-                if buffer:
-                    chunks.append((False, "".join(buffer)))
-                buffer = [line]
-                fence = match.group(2)
-            else:
-                buffer.append(line)
-        else:
-            buffer.append(line)
-            if (
-                match
-                and match.group(2)[0] == fence[0]
-                and len(match.group(2)) >= len(fence)
-                and not match.group(3).strip()
-            ):
-                chunks.append((True, "".join(buffer)))
-                buffer = []
-                fence = None
-    if buffer:
-        chunks.append((fence is not None, "".join(buffer)))
+            if marker[0] == "`" and "`" in info:
+                continue  # not a fence: backticks in a backtick info string
+            if match.start() > start:
+                chunks.append((False, text[start : match.start()]))
+            start, fence = match.start(), marker
+        elif marker[0] == fence[0] and len(marker) >= len(fence) and not info.strip():
+            end = match.end() + (1 if text.startswith("\n", match.end()) else 0)
+            chunks.append((True, text[start:end]))
+            start, fence = end, None
+    if start < len(text):
+        chunks.append((fence is not None, text[start:]))
     return chunks
 
 
 def close_fences(text: str) -> str:
     """Close a dangling code fence so it cannot swallow the rest of the document."""
+    if "```" not in text and "~~~" not in text:
+        return text
     chunks = split_fenced(text)
     if not chunks or not chunks[-1][0]:
         return text
@@ -70,19 +66,32 @@ def close_fences(text: str) -> str:
 _INLINE_CODE_RE = re.compile(r"(`+)(.+?)(?<!`)\1(?!`)", re.DOTALL)
 
 
-def map_prose(text: str, transform: Callable[[str], str]) -> str:
-    """Apply ``transform`` to everything except fenced and inline code."""
+def map_prose(text: str, *transforms: Callable[[str], str]) -> str:
+    """Apply ``transforms``, in order, to everything except fenced and inline code.
+
+    The text is split once, so the transforms must not create code (backticks or
+    fences) themselves.
+    """
+
+    def apply(segment: str) -> str:
+        for transform in transforms:
+            segment = transform(segment)
+        return segment
+
     out: list[str] = []
     for is_code, chunk in split_fenced(text):
         if is_code:
             out.append(chunk)
             continue
+        if "`" not in chunk:
+            out.append(apply(chunk))
+            continue
         position = 0
         for match in _INLINE_CODE_RE.finditer(chunk):
-            out.append(transform(chunk[position : match.start()]))
+            out.append(apply(chunk[position : match.start()]))
             out.append(match.group(0))
             position = match.end()
-        out.append(transform(chunk[position:]))
+        out.append(apply(chunk[position:]))
     return "".join(out)
 
 
@@ -90,40 +99,51 @@ _DISPLAY_MATH_RE = re.compile(r"\\\[(.+?)\\\]", re.DOTALL)
 _INLINE_MATH_RE = re.compile(r"\\\((.+?)\\\)", re.DOTALL)
 
 
+def math_to_dollars(segment: str) -> str:
+    """Prose-level part of :func:`convert_math`."""
+    if "\\[" in segment:
+        segment = _DISPLAY_MATH_RE.sub(lambda m: f"$${m.group(1)}$$", segment)
+    if "\\(" in segment:
+        segment = _INLINE_MATH_RE.sub(lambda m: f"${m.group(1).strip()}$", segment)
+    return segment
+
+
 def convert_math(text: str) -> str:
     r"""Rewrite ``\[ … \]`` and ``\( … \)`` to ``$$ … $$`` and ``$ … $``.
 
     Obsidian and GitHub only understand dollar delimiters.
     """
-
-    def prose(segment: str) -> str:
-        if "\\[" in segment:
-            segment = _DISPLAY_MATH_RE.sub(lambda m: f"$${m.group(1)}$$", segment)
-        if "\\(" in segment:
-            segment = _INLINE_MATH_RE.sub(lambda m: f"${m.group(1).strip()}$", segment)
-        return segment
-
-    return map_prose(text, prose)
+    return map_prose(text, math_to_dollars)
 
 
 _CURRENCY_RE = re.compile(r"(?<![\\$\w])\$(?=\d)")
+
+
+def currency_escaped(segment: str) -> str:
+    """Prose-level part of :func:`escape_currency`."""
+    return _CURRENCY_RE.sub(r"\\$", segment) if "$" in segment else segment
 
 
 def escape_currency(text: str) -> str:
     """Escape ``$5``-style amounts so they don't open inline math in Obsidian."""
     if "$" not in text:
         return text
-    return map_prose(text, lambda s: _CURRENCY_RE.sub(r"\\$", s))
+    return map_prose(text, currency_escaped)
 
 
 _HTML_TAG_RE = re.compile(r"<(?=[A-Za-z/!?])")
+
+
+def html_escaped(segment: str) -> str:
+    """Prose-level part of :func:`escape_html`."""
+    return _HTML_TAG_RE.sub("&lt;", segment) if "<" in segment else segment
 
 
 def escape_html(text: str) -> str:
     """Neutralize raw HTML in user-typed text so it shows literally."""
     if "<" not in text:
         return text
-    return map_prose(text, lambda s: _HTML_TAG_RE.sub("&lt;", s))
+    return map_prose(text, html_escaped)
 
 
 def fence_for(content: str, char: str = "`") -> str:
