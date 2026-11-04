@@ -5,6 +5,20 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+### Changed
+
+- The end-of-run summary is easier to read: counts get thousands separators,
+  the output folder is shown as `~/…`, `index.md` and `insights.html` are
+  clickable in terminals that support links, and the first run says how to
+  open the archive in Obsidian.
+- The "When you ask" heatmap in `insights.html` is larger and fills its card.
+
+### Fixed
+
+- The models chart counted reasoning steps and tool calls as separate
+  replies, which made reasoning models look busier than they were. Each reply
+  now counts once.
+
 ## 1.0.0 — 2026-11
 
 A complete rewrite for ChatGPT's 2026 export format.

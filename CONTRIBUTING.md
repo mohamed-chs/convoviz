@@ -12,6 +12,14 @@ uv sync
 uv run convoviz --help
 ```
 
+To try convoviz without a real export, build the made-up one the README
+examples come from:
+
+```sh
+uv run python tests/demo.py demo-export.zip
+uv run convoviz demo-export.zip -o demo-archive
+```
+
 ## Before you push
 
 ```sh
@@ -36,6 +44,10 @@ macOS.
 - Changes to the Markdown output show up in `tests/golden/rich.md`. Regenerate
   it with `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py` and check the
   diff reads well.
+- The README's example note is checked against the renderer in
+  `tests/test_demo.py` (regenerate it with `UPDATE_GOLDEN=1` too). When
+  `insights.html` changes, refresh the README images with
+  `uv run --with pillow python scripts/readme_images.py` (needs Chrome).
 - Record user-visible changes under "Unreleased" in `CHANGELOG.md`.
 - Keep dependencies few. The charts are plain SVG on purpose.
 

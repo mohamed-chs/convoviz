@@ -208,7 +208,7 @@ def _week_hour(stats: Stats) -> str:
     if not any(values):
         return ""
     bounds = _levels(values)
-    cell, gap, left, top = 22, 2, 34, 18
+    cell, gap, left, top = 28, 3, 34, 18
     width = left + 24 * (cell + gap)
     height = top + 7 * (cell + gap)
     parts = [
@@ -222,7 +222,7 @@ def _week_hour(stats: Stats) -> str:
         parts.append(f'<text class="axis" x="{x}" y="12">{hour:02d}h</text>')
     for row, name in enumerate(_WEEKDAYS):
         y = top + row * (cell + gap)
-        parts.append(f'<text class="axis" x="0" y="{y + cell - 7}">{name}</text>')
+        parts.append(f'<text class="axis" x="0" y="{y + cell / 2 + 4}">{name}</text>')
         for hour in range(24):
             count = stats.week_hour[row][hour]
             tip = f"{name} {hour:02d}:00–{hour:02d}:59: {count} prompts"

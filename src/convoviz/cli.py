@@ -285,11 +285,31 @@ def _check_output(output: Path) -> None:
 
 def _age(path: Path) -> str:
     seconds = max(0.0, time.time() - path.stat().st_mtime)
+    if seconds < 90:
+        return "just now"
     if seconds < 3600:
-        return f"{int(seconds // 60)} min ago"
+        return f"{round(seconds / 60)} min ago"
     if seconds < 86400:
-        return f"{int(seconds // 3600)} h ago"
-    return f"{int(seconds // 86400)} days ago"
+        return f"{_plural(int(seconds // 3600), 'hour')} ago"
+    days = int(seconds // 86400)
+    return "yesterday" if days == 1 else f"{days} days ago"
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n:,} {word}{'' if n == 1 else 's'}"
+
+
+def _display(path: Path) -> str:
+    """``path`` with the home folder shortened to ``~``."""
+    try:
+        return f"~/{path.resolve().relative_to(Path.home().resolve()).as_posix()}"
+    except ValueError:
+        return str(path)
+
+
+def _file_link(path: Path, label: str) -> str:
+    """A clickable file name in terminals that support links."""
+    return f"[link={path.resolve().as_uri()}]{label}[/link]"
 
 
 def _run(paths: list[Path], settings: Config, *, force: bool, quiet: bool) -> int:
@@ -341,9 +361,9 @@ def _summary(
     report: WriteReport, diagnostics: Diagnostics, settings: Config, seconds: float
 ) -> None:
     say = lambda text: console.print(text, soft_wrap=True)  # noqa: E731 - local shorthand
-    noun = "conversation" if report.total_notes == 1 else "conversations"
-    where = f"[bold]{settings.output}[/]"
-    say(f"[bold green]✓[/] {report.total_notes} {noun} in {where} ({seconds:.1f}s)")
+    where = f"[bold]{_display(settings.output)}[/]"
+    total = _plural(report.total_notes, "conversation")
+    say(f"[bold green]✓[/] {total} in {where} ({seconds:.1f}s)")
     counts = [
         (report.created, "new"),
         (report.updated, "updated"),
@@ -351,31 +371,34 @@ def _summary(
         (report.unchanged, "unchanged"),
     ]
     say(
-        "  " + " · ".join(f"{n} {label}" for n, label in counts if n)
+        "  " + " · ".join(f"{n:,} {label}" for n, label in counts if n)
         if any(n for n, _ in counts)
         else "  nothing to write"
     )
     files = []
     if copied := report.attachments_copied:
-        files.append(f"{copied} attachment{'s' if copied != 1 else ''} copied")
+        files.append(f"{_plural(copied, 'attachment')} copied")
     if missing := report.attachments_missing:
-        files.append(f"{missing} attachment{'s' if missing != 1 else ''} not in the export")
+        files.append(f"{_plural(missing, 'attachment')} not in the export")
     if files:
         say("  " + " · ".join(files))
     if report.kept_edits:
         say(
-            f"  [yellow]{len(report.kept_edits)} note(s) you edited have newer messages in this "
-            "export.[/] Your version was kept (--force replaces it):"
+            f"  [yellow]{_plural(len(report.kept_edits), 'note')} you edited "
+            f"{'has' if len(report.kept_edits) == 1 else 'have'} newer messages in this export.[/] "
+            "Your version was kept (--force replaces it):"
         )
         for path in report.kept_edits[:5]:
             say(f"    {path}")
         if len(report.kept_edits) > 5:
             say(f"    … and {len(report.kept_edits) - 5} more")
     if report.edited_current:
-        say(f"  [dim]{report.edited_current} note(s) you edited were left as they are.[/]")
+        n = report.edited_current
+        say(f"  [dim]{_plural(n, 'note')} you edited {'was' if n == 1 else 'were'} left as is.[/]")
     if report.deleted_skipped:
         say(
-            f"  [dim]{report.deleted_skipped} note(s) you deleted were not recreated "
+            f"  [dim]{_plural(report.deleted_skipped, 'note')} you deleted "
+            f"{'was' if report.deleted_skipped == 1 else 'were'} not recreated "
             "(--force brings them back).[/]"
         )
     if report.kept_files:
@@ -384,10 +407,17 @@ def _summary(
             f"  [yellow]Left {names} alone[/]: changed since convoviz wrote it, or not "
             "convoviz's. Delete or rename it to get a fresh copy."
         )
-    charts = ", or insights.html for charts" if settings.insights else ""
-    say(f"  Start with index.md{charts}.")
+    index = _file_link(settings.output / "index.md", "index.md")
+    if settings.insights:
+        charts = _file_link(settings.output / "insights.html", "insights.html")
+        say(f"  Open {charts} for your charts, or browse {index}.")
+    else:
+        say(f"  Start with {index}.")
+    if report.created and report.created == report.total_notes:
+        say("  [dim]To read it in Obsidian: Open folder as vault, then choose this folder.[/]")
     if diagnostics.skipped:
-        say(f"  [dim]Skipped {len(diagnostics.skipped)} empty or unusable record(s).[/]")
+        n = len(diagnostics.skipped)
+        say(f"  [dim]Skipped {n:,} empty or unusable record{'' if n == 1 else 's'}.[/]")
     for message in diagnostics.warnings[:5]:
         say(f"  [yellow]warning:[/] {message}")
     for message in diagnostics.errors[:10]:
