@@ -423,7 +423,8 @@ class Writer:
             "# ChatGPT conversations",
             "",
             (
-                f"{len(entries)} conversations. Open `Conversations.base` in Obsidian "
+                f"{len(entries):,} conversation{'' if len(entries) == 1 else 's'}. "
+                "Open `Conversations.base` in Obsidian "
                 "for a sortable table, or `insights.html` for charts."
             ),
         ]
