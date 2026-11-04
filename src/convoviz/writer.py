@@ -7,6 +7,7 @@ Layout::
       attachments/…
       index.md
       Conversations.base
+      Custom instructions.md   (when the export recorded any)
       insights.html
       .convoviz/state.json
 
@@ -23,8 +24,9 @@ of what convoviz last wrote there. On a re-run with a newer export:
   run, a deleted ``.convoviz`` folder) is adopted rather than duplicated;
 * conversations missing from the new export are left alone (exports can be partial).
 
-``index.md``, ``Conversations.base`` and ``insights.html`` are tracked the same
-way: a copy the user changed, or a file convoviz didn't create, is left alone.
+``index.md``, ``Conversations.base``, ``Custom instructions.md`` and ``insights.html``
+are tracked the same way: a copy the user changed, or a file convoviz didn't
+create, is left alone.
 """
 
 from __future__ import annotations
@@ -45,7 +47,12 @@ import orjson
 from convoviz.assets import AssetStore
 from convoviz.fsnames import safe_stem
 from convoviz.markdown import escape_inline
-from convoviz.render import local_time, render_conversation
+from convoviz.render import (
+    INSTRUCTIONS_PAGE,
+    local_time,
+    render_conversation,
+    render_instructions,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -244,6 +251,11 @@ class Writer:
                     progress(conversation)
             self._write_managed("index.md", self._index())
             self._write_managed("Conversations.base", _BASE.encode())
+            instructions = render_instructions(
+                export.conversations, self._link_from_root, self.options.timezone
+            )
+            if instructions is not None:
+                self._write_managed(INSTRUCTIONS_PAGE, instructions.encode())
             for rel, data in (extra_files or {}).items():
                 self._write_managed(rel, data)
         finally:
@@ -386,6 +398,12 @@ class Writer:
                 return
         _atomic_write(path, data)
         self.state.files[rel] = digest
+
+    def _link_from_root(self, conversation: Conversation) -> str | None:
+        entry = self.state.entries.get(conversation.id)
+        if entry is None or entry.deleted:
+            return None
+        return quote(entry.path, safe="/._-~")
 
     def _index(self) -> bytes:
         entries = sorted(

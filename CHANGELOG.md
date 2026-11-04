@@ -20,6 +20,8 @@ versions follow [SemVer](https://semver.org).
 - Word clouds leave out filler words in French, Spanish, Portuguese, German,
   Italian and Arabic too, not only English, and an `ignored_words` setting
   leaves out words of your choice.
+- `Custom instructions.md` lists every version of your custom instructions,
+  with the dates it was in use and the last conversation that used it.
 
 ### Changed
 

@@ -280,3 +280,44 @@ def test_generated_files_the_user_changed_are_kept(run, tmp_path: Path) -> None:
     report, _ = run([_conv()])
     assert report.kept_files == ["Conversations.base"]
     assert "Chat" in (out / "index.md").read_text()
+
+
+def _with_instructions(title: str, n: int, created: float, profile: str) -> dict:
+    b = ConversationBuilder(
+        title=title, conversation_id=f"00000000-0000-4000-8000-{n:012d}", create_time=created
+    )
+    b.add(
+        "user",
+        {
+            "content_type": "user_editable_context",
+            "user_profile": profile,
+            "user_instructions": "Be <brief>.\n# Always",
+        },
+    )
+    b.user("question")
+    b.assistant("answer")
+    return b.build()
+
+
+def test_custom_instructions_page(run) -> None:
+    day = 86400
+    _, out = run(
+        [
+            _with_instructions("Old", 1, BASE_TIME, "I cook."),
+            _with_instructions("Newer", 2, BASE_TIME + 5 * day, "I cook and code."),
+            _with_instructions("Newest", 3, BASE_TIME + 9 * day, "I cook and code."),
+            _conv(n=4),
+        ]
+    )
+    page = (out / "Custom instructions.md").read_text()
+    newest = page.index("## 2026-01-06 to 2026-01-10 · 2 conversations")
+    oldest = page.index("## 2026-01-01 · 1 conversation\n")
+    assert newest < oldest
+    assert "I cook and code." in page
+    assert "Be &lt;brief>.\n### Always" in page  # typed text is shown literally
+    assert "Last used in [Newest](conversations/2026/2026-01-10%20Newest.md)." in page
+
+
+def test_no_custom_instructions_page_without_instructions(run) -> None:
+    _, out = run([_conv()])
+    assert not (out / "Custom instructions.md").exists()

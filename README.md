@@ -59,6 +59,7 @@ ChatGPT Archive/
 │       └── 2026-03-14 Planning a trip to Kyoto.md
 ├── attachments/            your uploads and generated images
 ├── index.md                every conversation, newest first
+├── Custom instructions.md  each version of your custom instructions
 ├── Conversations.base      a sortable table in Obsidian
 └── insights.html           charts and word clouds of how you've used ChatGPT
 ```
@@ -143,7 +144,7 @@ This prints a description of the export's **structure only**: field names, conte
 
 - **Business, Enterprise and Edu workspaces** can't use ChatGPT's export feature. That's an OpenAI limitation, and convoviz needs the export.
 - **Images missing?** Some 2026 exports leave out generated images or library files on OpenAI's side. convoviz puts a placeholder in the note and counts what's missing in the summary.
-- **Custom instructions and memories** are not written into notes.
+- **Custom instructions** are collected in `Custom instructions.md`, one section per version, with the dates each was in use. Saved memories are not written anywhere.
 
 ## Contributing
 

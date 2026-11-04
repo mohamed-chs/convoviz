@@ -410,3 +410,60 @@ class _Renderer:
             body = self.prose(block.content)
         label = f"{block.kind}: {block.title}" if block.title else block.kind
         return _details(f"🗎 {label}{version}", body, open_=True)
+
+
+# --------------------------------------------------------------------------- pages
+
+INSTRUCTIONS_PAGE = "Custom instructions.md"
+_INSTRUCTION_FIELDS = (
+    ("user_profile", "About you"),
+    ("user_instructions", "How ChatGPT should respond"),
+)
+
+
+def render_instructions(
+    conversations: list[Conversation],
+    link: Callable[[Conversation], str | None],
+    tz: tzinfo | None,
+) -> str | None:
+    """Every version of the custom instructions, newest first, with where it was used.
+
+    ``link`` gives the relative link to a conversation's note (or ``None``).
+    Returns ``None`` when no conversation recorded custom instructions.
+    """
+    versions: dict[tuple[str, ...], list[Conversation]] = {}
+    for conversation in conversations:
+        found = conversation.extra.get("custom_instructions")
+        if not isinstance(found, dict) or not found:
+            continue
+        key = tuple(str(found.get(name) or "") for name, _ in _INSTRUCTION_FIELDS)
+        versions.setdefault(key, []).append(conversation)
+    if not versions:
+        return None
+
+    def day(conversation: Conversation) -> str:
+        return f"{local_time(conversation.created, tz):%Y-%m-%d}"
+
+    ordered = sorted(versions.items(), key=lambda kv: max(c.created for c in kv[1]), reverse=True)
+    lines = [
+        "# Custom instructions",
+        "",
+        (
+            "What you told ChatGPT about yourself and how it should respond, as recorded "
+            "in your conversations. Newest version first, with the dates it was in use."
+        ),
+    ]
+    for texts, used in ordered:
+        used.sort(key=lambda c: c.created)
+        first, last = used[0], used[-1]
+        span = day(first) if day(first) == day(last) else f"{day(first)} to {day(last)}"
+        count = f"{len(used)} conversation{'s' if len(used) != 1 else ''}"
+        lines += ["", f"## {span} · {count}", ""]
+        for (_, heading), text in zip(_INSTRUCTION_FIELDS, texts, strict=True):
+            if text:
+                body = map_prose(text, html_escaped, currency_escaped, _demoted)
+                lines += [f"**{heading}**", "", close_fences(body).strip(), ""]
+        target = link(last)
+        title = escape_inline(last.title)
+        lines.append(f"Last used in [{title}]({target})." if target else f"Last used in {title}.")
+    return "\n".join(lines) + "\n"

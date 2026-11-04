@@ -60,8 +60,11 @@ first reports from users. The design aims to make them visible
 - **Canvas.** Every edit renders the whole document again (in an open
   `<details>`). For heavily edited documents, showing only the final version
   per turn might read better.
-- **Custom instructions** are captured in `Conversation.extra` but not
-  rendered anywhere. They could become an optional note or `index.md` section.
+- **Custom instructions** go to `Custom instructions.md` (one section per
+  distinct version, newest first), written by the Writer as a managed file.
+  Memory snapshots (`model_editable_context`, reportedly `model_set_context`
+  text) are hidden and not captured; a "Memories" page could follow the same
+  pattern once a real export confirms the shape.
 - **Project names.** Only `project_id` is known. If an export ever carries
   project names, group notes by project.
 - **Word clouds** drop filler words in English, French, Spanish, Portuguese,
