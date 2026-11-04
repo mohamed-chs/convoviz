@@ -5,47 +5,6 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
-### Added
-
-- Interactive replies are written from their Markdown version instead of
-  widget code.
-- Charts in replies become tables, and image search results become links to
-  their pages.
-- Shopping carousels list their products, with prices and shops.
-- A reply's "Sources" list keeps the sources it didn't cite inline.
-- Generated images and documents that are only in the export's file library
-  appear in the message that produced them, when the export kept it.
-- A warning when the export's manifest lists files that aren't there, which
-  usually means a part of a split download is missing.
-- Word clouds leave out filler words in French, Spanish, Portuguese, German,
-  Italian and Arabic too, not only English, and an `ignored_words` setting
-  leaves out words of your choice.
-- `Custom instructions.md` lists every version of your custom instructions,
-  with the dates it was in use and the last conversation that used it.
-- The final version of each Canvas document is also saved as its own file in
-  `canvas/` (`.md`, `.py`, `.html`, …), linked from the note.
-- A config file left over from convoviz 0.x gets a message saying how to
-  replace it, and `convoviz config init --force` keeps the replaced file as
-  `config.toml.bak`.
-
-### Changed
-
-- Progress notes written while the model thinks are folded into its
-  reasoning.
-- Drafts ChatGPT shows as cards (emails, posts, documents) appear as labelled
-  sections, such as "Email: subject", instead of plain text.
-- Library files with no payload in the export are no longer listed as missing.
-
-### Fixed
-
-- Generated images get their prompt as a caption when the image itself
-  doesn't carry it.
-- AVIF images and QuickTime videos stored as `.dat` get the right extension.
-- `--timezone` and the `timezone` setting work on Windows, which has no time
-  zone database of its own (convoviz now installs `tzdata` there).
-- `inspect` could include an unrecognized type name verbatim, even one that
-  isn't identifier-like. Those are now replaced by `<other>`.
-
 ## 1.0.0 — 2026-11
 
 A complete rewrite for ChatGPT's 2026 export format.
@@ -73,6 +32,30 @@ A complete rewrite for ChatGPT's 2026 export format.
 - The default output folder is `~/Documents/ChatGPT Archive`.
 - `convoviz inspect [--json]`: an anonymous structure report for bug reports.
 - `convoviz config init|path` and a TOML config file.
+- Interactive replies are written from their Markdown version instead of
+  widget code.
+- Charts in replies become tables, and image search results become links to
+  their pages.
+- Shopping carousels list their products, with prices and shops.
+- A reply's "Sources" list keeps the sources it didn't cite inline.
+- Generated images and documents that are only in the export's file library
+  appear in the message that produced them, when the export kept it.
+- A warning when the export's manifest lists files that aren't there, which
+  usually means a part of a split download is missing.
+- Word clouds leave out filler words in French, Spanish, Portuguese, German,
+  Italian and Arabic too, not only English, and an `ignored_words` setting
+  leaves out words of your choice.
+- `Custom instructions.md` lists every version of your custom instructions,
+  with the dates it was in use and the last conversation that used it.
+- The final version of each Canvas document is also saved as its own file in
+  `canvas/` (`.md`, `.py`, `.html`, …), linked from the note.
+- A config file left over from convoviz 0.x gets a message saying how to
+  replace it, and `convoviz config init --force` keeps the replaced file as
+  `config.toml.bak`.
+- Progress notes written while the model thinks are folded into its
+  reasoning.
+- Drafts ChatGPT shows as cards (emails, posts, documents) appear as labelled
+  sections, such as "Email: subject", instead of plain text.
 
 ### Fixed
 - Conversations rendered only their last message (exports no longer list
@@ -81,6 +64,9 @@ A complete rewrite for ChatGPT's 2026 export format.
 - Non-Latin titles produced empty or garbled file names (#64).
 - Broken emoji (unpaired surrogates) failed to load (#69).
 - Footnote numbers restarted, and collided, in every message.
+- Generated images get their prompt as a caption when the image itself
+  doesn't carry it.
+- AVIF images and QuickTime videos stored as `.dat` get the right extension.
 
 ### Removed
 - Bundled fonts and the matplotlib, wordcloud and NLTK dependencies. Word
