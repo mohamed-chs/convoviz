@@ -3,6 +3,10 @@
 > **Note**: This changelog is informal and incomplete. It tracks the primary record of all functional and behavioral updates to Convoviz.
 > **APPEND-ONLY. DO NOT EDIT, REWRITE, OR DELETE PAST ENTRIES. ALL NEW UPDATES MUST BE ADDED TO THE TOP.**
 
+## Recent Updates (November 4, 2026)
+
+- **Parent-only exports**: `build_node_tree()` now also links nodes through `parent`, so exports whose nodes have an empty or missing `children` field render the whole active branch instead of only the last message. Added regressions in `tests/test_models.py`.
+
 ## Recent Updates (February 23, 2026)
 
 - **Split conversation file support**: Loaders now accept both single-file (`conversations.json`) and split-file (`conversations-000.json` through `conversations-NNN.json`) ChatGPT export formats. ZIP validation, ZIP loading, and directory loading all handle both formats transparently, merging split files via `ConversationCollection.update()`.
