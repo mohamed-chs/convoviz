@@ -158,6 +158,7 @@ This prints a description of the export's **structure only**: field names, conte
 
 ## Notes
 
+- **Coming from convoviz 0.x?** 1.0 writes to a new folder, `~/Documents/ChatGPT Archive`, and leaves your old `ChatGPT-Data` folder alone. Don't point it at the old folder: 1.0 would treat the old notes as ones you edited and keep them. If you made a config file with 0.x, run `convoviz config init --force` to get the new format.
 - **Business, Enterprise and Edu workspaces** can't use ChatGPT's export feature. That's an OpenAI limitation, and convoviz needs the export.
 - **Images missing?** Some 2026 exports leave out generated images or library files on OpenAI's side. convoviz puts a placeholder in the note and counts what's missing in the summary.
 - **Custom instructions** are collected in `Custom instructions.md`, one section per version, with the dates each was in use. Saved memories are not written anywhere.
