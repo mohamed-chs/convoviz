@@ -93,6 +93,14 @@ def test_flat_layout(run) -> None:
     assert _notes(out) == ["conversations/2026-01-01 Chat.md"]
 
 
+def test_non_latin_titles_keep_their_filenames(run) -> None:
+    # Issue #64: 0.x reduced titles to ASCII, so Cyrillic ones became "untitled".
+    _, out = run([_conv("Синонимы для каталога")])
+    assert _notes(out) == ["conversations/2026/2026-01-01 Синонимы для каталога.md"]
+    note = (out / _notes(out)[0]).read_text(encoding="utf-8")
+    assert 'title: "Синонимы для каталога"' in note
+
+
 def test_rerun_is_incremental(run) -> None:
     run([_conv()])
     report, _ = run([_conv()])

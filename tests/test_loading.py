@@ -82,13 +82,17 @@ def test_lone_surrogates_are_repaired(tmp_path: Path, load) -> None:
 
 
 def test_cesu8_bytes_are_repaired(tmp_path: Path, load) -> None:
-    title = "emoji 😀"
-    data = json.dumps([_conv(1, title=title)], ensure_ascii=False).encode("utf-16", "surrogatepass")
-    cesu = data.decode("utf-16").encode("utf-8", "surrogatepass")  # same as utf-8 here
+    # Each UTF-16 surrogate half encoded as UTF-8 on its own (CESU-8), as seen in
+    # real exports: 😂 as ED A0 BD ED B8 82 instead of F0 9F 98 82 (issue #69).
+    data = json.dumps([_conv(1, title="laugh 😂")], ensure_ascii=False).encode()
+    cesu = data.replace("😂".encode(), b"\xed\xa0\xbd\xed\xb8\x82")
+    assert cesu != data
     path = tmp_path / "conversations.json"
-    path.write_bytes(cesu.replace("😀".encode(), "😀".encode("utf-8", "surrogatepass")))
-    export, _ = load(path)
-    assert export.conversations[0].title == title
+    path.write_bytes(cesu)
+    export, diagnostics = load(path)
+    assert export.conversations[0].title == "laugh 😂"
+    assert diagnostics.warnings
+    assert not diagnostics.errors
 
 
 def test_asset_index_resolves_dat_files_and_names(tmp_path: Path, load) -> None:
