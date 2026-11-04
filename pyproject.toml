@@ -42,11 +42,6 @@ convoviz = "convoviz.cli:main"
 requires = ["uv_build>=0.13.7,<0.14"]
 build-backend = "uv_build"
 
-[tool.uv]
-# Only resolve releases at least a week old (supply-chain cooldown). Set here so
-# CI, contributors and the lockfile agree.
-exclude-newer = "7 days"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]
