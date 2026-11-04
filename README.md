@@ -1,5 +1,10 @@
 # convoviz
 
+[![PyPI](https://img.shields.io/pypi/v/convoviz)](https://pypi.org/project/convoviz/)
+[![CI](https://img.shields.io/github/actions/workflow/status/mohamed-chs/convoviz/ci.yml?label=CI)](https://github.com/mohamed-chs/convoviz/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/pepy/dt/convoviz)](https://pepy.tech/projects/convoviz)
+[![License](https://img.shields.io/pypi/l/convoviz)](LICENSE)
+
 Turn your ChatGPT data export into a folder of Markdown notes you own, plus a page of charts about how you've used ChatGPT.
 
 - **One readable note per conversation.** Each note has its properties (dates, models, message count), your prompts and the answers, and its sources as footnotes. Reasoning, code and tool output are folded away. Charts become tables, shopping picks become lists, and drafted emails and posts become labelled sections. Edited and regenerated replies are kept too, folded at the point where they branch.
@@ -131,6 +136,16 @@ convoviz recognizes its notes by their `conversation_id` property, and keeps tra
 
 To make settings permanent, run `convoviz config init` and edit the file it creates. `convoviz config path` shows where it is. In that file you can also rename the turn labels ("You", "ChatGPT"), hide timestamps, reasoning or tool output, set the tags added to every note, and list words to leave out of the word clouds.
 
+## PDFs
+
+To turn notes into PDFs, try [convpdf](https://github.com/mohamed-chs/convpdf):
+
+```sh
+npm install -g convpdf
+cd ~/Documents/"ChatGPT Archive"
+convpdf "conversations/**/*.md" -o PDF/
+```
+
 ## Something looks wrong?
 
 ChatGPT's export format is undocumented and changes often. When convoviz meets something new, the end-of-run summary says so. To report it:
@@ -148,6 +163,8 @@ This prints a description of the export's **structure only**: field names, conte
 - **Custom instructions** are collected in `Custom instructions.md`, one section per version, with the dates each was in use. Saved memories are not written anywhere.
 
 ## Contributing
+
+Ideas, quirks, or just a note that it worked for you: [open an issue](https://github.com/mohamed-chs/convoviz/issues). If convoviz is useful to you, a ⭐ helps others find it.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). For how the code fits together, see [docs/dev/architecture.md](docs/dev/architecture.md). What's known about the export format is in [docs/dev/export-format.md](docs/dev/export-format.md).
 
