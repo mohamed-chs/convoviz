@@ -41,8 +41,6 @@ _DROP_TYPES = frozenset(
         "sources_footnote",
         "nav_list",
         "navigation_list",
-        "image_v2",
-        "image_group",
         "tldr",
         "attribution",
     }
@@ -69,6 +67,9 @@ class _Sources:
             self.items.append(source)
         return self._index[key]
 
+    def known(self, source: Source) -> bool:
+        return (source.url, None if source.url else source.title) in self._index
+
     def marker(self, sources: list[Source]) -> str:
         ids = sorted({self.add(s) for s in sources if s.url or s.title})
         if not ids:
@@ -86,6 +87,9 @@ def render_text(text: str, meta: dict[str, Any], diagnostics: Diagnostics) -> Te
     refs = meta.get("content_references")
     if isinstance(refs, list) and refs:
         text = _apply_spans(text, _content_reference_spans(text, refs, sources, diagnostics))
+        footnote = _footnote_sources(refs)
+    else:
+        footnote = []
 
     legacy = meta.get("citations")
     if isinstance(legacy, list) and legacy:
@@ -99,6 +103,8 @@ def render_text(text: str, meta: dict[str, Any], diagnostics: Diagnostics) -> Te
     text = _BARE_CITE_RE.sub("", text)
     text = _PUA_RE.sub("", text)
     text = _collapse_repeats(text)
+    if uncited := [f for f in footnote if not sources.known(f)]:
+        text = text.rstrip() + "\n\nSources: " + sources.marker(uncited)
     return TextBlock(text, tuple(sources.items))
 
 
@@ -182,6 +188,14 @@ def _content_reference_replacement(
     kind = raw_kind if isinstance(raw_kind, str) else ""
     if kind in _DROP_TYPES:
         return ""
+    if kind in ("image_group", "image_v2"):
+        return _image_links(ref)
+    if kind == "client_defined_widget":
+        data = ref["data"] if isinstance(ref.get("data"), dict) else {}
+        if data.get("widget_type") == "charts_widget_v2":
+            return _chart_table(data.get("content"))
+        # Code-block widgets: the text already holds their Markdown.
+        return None if data.get("widget_type") == "code_block" else (_alt(ref) or "")
     if kind in _LINK_TYPES:
         return sources.marker(_sources_from_items(ref))
     if kind == "file":
@@ -218,7 +232,83 @@ def _sources_from_items(ref: dict[str, Any]) -> list[Source]:
             break
     if not found and isinstance(ref.get("url"), str):
         found.append(_source(ref))
-    return [s for s in found if s.url or s.title]
+    found = [s for s in found if s.url or s.title]
+    if not found and isinstance(ref.get("safe_urls"), list):
+        # Product references keep their links here only.
+        found = [Source(url, None) for u in ref["safe_urls"] if (url := _clean_url(_text(u)))]
+    return found
+
+
+def _text(value: Any) -> str | None:
+    return value.strip() or None if isinstance(value, str) else None
+
+
+def _footnote_sources(refs: list[Any]) -> list[Source]:
+    """The "Sources" list ChatGPT shows under a reply."""
+    found: list[Source] = []
+    for ref in refs:
+        if isinstance(ref, dict) and ref.get("type") == "sources_footnote":
+            found.extend(_sources_from_items(ref))
+    return found
+
+
+def _image_links(ref: dict[str, Any]) -> str:
+    """Image search results become links to the pages they come from."""
+    images = ref.get("images")
+    links: list[str] = []
+    for entry in images if isinstance(images, list) else ():
+        if not isinstance(entry, dict):
+            continue
+        image = entry.get("image_result") if isinstance(entry.get("image_result"), dict) else entry
+        url = _clean_url(_text(image.get("url")) or _text(image.get("content_url")))
+        if url:
+            title = _text(image.get("title")) or "Image"
+            links.append(f"- [{_link_text(title)}](<{url}>)")
+    return "\n\n" + "\n".join(links) + "\n\n" if links else ""
+
+
+def _chart_table(chart: Any) -> str:
+    """A chart widget becomes its description and a table of its data."""
+    if not isinstance(chart, dict):
+        return ""
+    x_key, series, data = chart.get("xKey"), chart.get("series"), chart.get("data")
+    if not (isinstance(x_key, str) and isinstance(series, list) and isinstance(data, list)):
+        return ""
+    columns = [s for s in series if isinstance(s, dict) and isinstance(s.get("dataKey"), str)]
+    rows = [d for d in data if isinstance(d, dict)]
+    if not columns or not rows:
+        return ""
+    formatted = chart.get("formattedData")
+    formatted = formatted if isinstance(formatted, list) else []
+
+    def cell(value: Any) -> str:
+        return "" if value is None else " ".join(str(value).split()).replace("|", "\\|")
+
+    def value(index: int, column: dict[str, Any]) -> Any:
+        shown = formatted[index] if index < len(formatted) else None
+        if isinstance(shown, dict) and shown.get(column["dataKey"]) is not None:
+            return shown[column["dataKey"]]
+        raw = rows[index].get(column["dataKey"])
+        suffix = column.get("valueSuffix") if isinstance(column.get("valueSuffix"), str) else ""
+        return None if raw is None else f"{raw}{suffix}"
+
+    header = [x_key] + [_text(c.get("label")) or c["dataKey"] for c in columns]
+    lines = [
+        "| " + " | ".join(cell(h) for h in header) + " |",
+        "|" + " --- |" * len(header),
+    ]
+    lines += [
+        "| " + " | ".join([cell(row.get(x_key))] + [cell(value(i, c)) for c in columns]) + " |"
+        for i, row in enumerate(rows)
+    ]
+    meta = chart.get("meta") if isinstance(chart.get("meta"), dict) else {}
+    description = _text(meta.get("description"))
+    table = "\n".join(lines)
+    return f"\n\n{description}\n\n{table}\n\n" if description else f"\n\n{table}\n\n"
+
+
+def _link_text(text: str) -> str:
+    return " ".join(text.split()).replace("[", "\\[").replace("]", "\\]")
 
 
 def _source(item: dict[str, Any]) -> Source:

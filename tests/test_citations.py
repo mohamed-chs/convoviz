@@ -129,3 +129,58 @@ def test_unknown_reference_types_are_reported() -> None:
     block = render_text("see XX", {"content_references": [ref]}, diagnostics)
     assert block.text == "see alt text"
     assert diagnostics.unknown["content_reference:hologram"] == 1
+
+
+def test_chart_widget_becomes_a_table() -> None:
+    marker = "chartx"
+    chart = {
+        "meta": {"description": "Share by year"},
+        "xKey": "year",
+        "series": [{"dataKey": "v", "label": "Share", "valueSuffix": "%"}],
+        "data": [{"year": 2025, "v": 10}, {"year": 2026, "v": 12}],
+        "formattedData": [{"v": "10.0%"}],
+    }
+    ref = {
+        "type": "client_defined_widget",
+        "matched_text": marker,
+        "data": {"widget_type": "charts_widget_v2", "content": chart},
+    }
+    block = render_text(f"Look:{marker}Done.", {"content_references": [ref]}, Diagnostics())
+    assert block.text == (
+        "Look:\n\nShare by year\n\n| year | Share |\n| --- | --- |\n"
+        "| 2025 | 10.0% |\n| 2026 | 12% |\n\nDone."
+    )
+
+
+def test_image_groups_become_page_links() -> None:
+    marker = "iturn0image1"
+    ref = {
+        "type": "image_group",
+        "matched_text": marker,
+        "images": [
+            {"image_result": {"title": "A [cat]", "url": "https://p.example/cat"}},
+            {"title": "no link"},
+        ],
+    }
+    block = render_text(f"Cats{marker}", {"content_references": [ref]}, Diagnostics())
+    assert block.text == "Cats\n\n- [A \\[cat\\]](<https://p.example/cat>)\n\n"
+
+
+def test_safe_urls_and_sources_footnote() -> None:
+    marker = "productsx"
+    refs = [
+        {"type": "product_link", "matched_text": marker, "safe_urls": ["https://shop.example/a"]},
+        {
+            "type": "sources_footnote",
+            "sources": [
+                {"title": "Shop", "url": "https://shop.example/a"},
+                {"title": "Review", "url": "https://review.example/b"},
+            ],
+        },
+    ]
+    block = render_text(f"Buy{marker}.", {"content_references": refs}, Diagnostics())
+    assert block.sources == (
+        Source("https://shop.example/a", None),
+        Source("https://review.example/b", "Review"),
+    )
+    assert block.text == f"Buy{CITE_OPEN}0{CITE_CLOSE}.\n\nSources: {CITE_OPEN}1{CITE_CLOSE}"
