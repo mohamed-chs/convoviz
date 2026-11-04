@@ -28,6 +28,8 @@ versions follow [SemVer](https://semver.org).
 
 ### Fixed
 
+- Generated images get their prompt as a caption when the image itself
+  doesn't carry it.
 - AVIF images and QuickTime videos stored as `.dat` get the right extension.
 
 ## 1.0.0 — 2026-11

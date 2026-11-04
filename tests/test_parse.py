@@ -260,6 +260,26 @@ def test_attachments() -> None:
     assert tool.blocks[0].caption == "a cat"
 
 
+def test_image_prompt_comes_from_the_tool_call() -> None:
+    builder = ConversationBuilder()
+    builder.user("draw a fox")
+    builder.add(
+        "assistant",
+        {
+            "content_type": "text",
+            "parts": ['{"prompt": "a red fox, watercolor", "size": "1024x1024"}'],
+        },
+        recipient="t2uay3k.sj1i4kz",
+    )
+    image = {"content_type": "image_asset_pointer", "asset_pointer": "sediment://file_fox"}
+    builder.add(
+        "tool", {"content_type": "multimodal_text", "parts": [image]}, name="t2uay3k.sj1i4kz"
+    )
+    _, tool = _messages(builder)
+    assert isinstance(tool.blocks[0], AttachmentBlock)
+    assert tool.blocks[0].caption == "a red fox, watercolor"
+
+
 def test_voice_messages() -> None:
     builder = ConversationBuilder()
     builder.add(

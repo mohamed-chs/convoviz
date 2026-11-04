@@ -135,6 +135,9 @@ class _Context:
     conv_id: str
     diagnostics: Diagnostics
     custom_instructions: dict[str, str] = field(default_factory=dict)
+    # Image prompts by the node of the tool call that sent them.
+    prompts: dict[str, str] = field(default_factory=dict)
+    parent: str | None = None  # of the message being parsed
 
     def where(self, node_id: str) -> str:
         return f"conversation {self.conv_id}, node {node_id}"
@@ -162,6 +165,7 @@ def _materialize_messages(
         visited.add(node_id)
         raw = raw_nodes.get(node_id)
         if raw is not None:
+            ctx.parent = nodes[node_id].parent
             try:
                 nodes[node_id].message = _parse_message(node_id, raw, canvases, ctx)
             except Exception as exc:  # noqa: BLE001 - one bad message must not sink the rest
@@ -172,6 +176,7 @@ def _materialize_messages(
     for node_id, raw in raw_nodes.items():
         if node_id in visited:
             continue
+        ctx.parent = nodes[node_id].parent
         try:
             nodes[node_id].message = _parse_message(node_id, raw, {}, ctx)
         except Exception as exc:  # noqa: BLE001
@@ -445,6 +450,10 @@ def _tool_call(
         return _canvas_update(payload, canvases, node_id, ctx)
     # Search queries, image prompts, memory writes, research plans: plumbing.
     ctx.diagnostics.count(f"tool_call:{recipient}")
+    if payload.lstrip().startswith("{"):
+        prompt = _str(_dict(_load_payload(payload)).get("prompt"))
+        if prompt and prompt.strip():
+            ctx.prompts[node_id] = prompt.strip()
     return []
 
 
@@ -465,8 +474,11 @@ def _tool_result(
     if ctype == "multimodal_text":
         # Generated images and charts: keep the pictures, drop the status chatter.
         parts = content.get("parts")
+        prompt = ctx.prompts.get(ctx.parent or "")
         return [
-            b for b in _parts("tool", parts, meta, node_id, ctx) if isinstance(b, AttachmentBlock)
+            b if b.caption or not prompt else replace(b, caption=prompt)
+            for b in _parts("tool", parts, meta, node_id, ctx)
+            if isinstance(b, AttachmentBlock)
         ]
     if ctype == "tether_quote":
         return _content_blocks("tool", ctype, content, meta, node_id, ctx)
