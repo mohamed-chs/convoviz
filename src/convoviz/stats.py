@@ -22,6 +22,7 @@ from convoviz.model import (
     strip_citations,
 )
 from convoviz.render import count_messages
+from convoviz.stopwords import STOPWORDS
 from convoviz.tree import linearize
 
 if TYPE_CHECKING:
@@ -94,7 +95,11 @@ def bucket_label(low: int, high: int | None) -> str:
     return f"{low}–{high}" if low != high else str(low)
 
 
-def compute(conversations: list[Conversation], tz: tzinfo | None) -> Stats:
+def compute(
+    conversations: list[Conversation],
+    tz: tzinfo | None,
+    ignored_words: frozenset[str] = frozenset(),
+) -> Stats:
     """Aggregate statistics over ``conversations``."""
     stats = Stats()
     for conversation in conversations:
@@ -113,7 +118,7 @@ def compute(conversations: list[Conversation], tz: tzinfo | None) -> Stats:
             used |= _features(message)
             when = (message.time or conversation.created).astimezone(tz)
             if message.role == "user":
-                _count_prompt(stats, message, when)
+                _count_prompt(stats, message, when, ignored_words)
             elif message.role == "assistant":
                 stats.replies += 1
                 if message.model:
@@ -124,12 +129,12 @@ def compute(conversations: list[Conversation], tz: tzinfo | None) -> Stats:
     return stats
 
 
-def _count_prompt(stats: Stats, message: Message, when: datetime) -> None:
+def _count_prompt(stats: Stats, message: Message, when: datetime, ignored: frozenset[str]) -> None:
     stats.prompts += 1
     stats.per_day[when.date()] += 1
     stats.week_hour[when.weekday()][when.hour] += 1
     stats.per_month[f"{when:%Y-%m}"] += 1
-    stats.words_by_year[when.year].update(tokenize(message.text))
+    stats.words_by_year[when.year].update(tokenize(message.text, ignored))
 
 
 def _features(message: Message) -> set[str]:
@@ -163,238 +168,21 @@ _WORD_RE = re.compile(r"[^\W\d_](?:[\w'’-]*[^\W_])?")
 _CODE_RE = re.compile(r"```.*?(?:```|\Z)|`[^`\n]*`", re.DOTALL)
 _URL_RE = re.compile(r"https?://\S+")
 
-# A compact English stop list; distinctiveness scoring removes most other filler.
-STOPWORDS = frozenset(
-    [
-        "a",
-        "about",
-        "above",
-        "after",
-        "again",
-        "against",
-        "all",
-        "also",
-        "am",
-        "an",
-        "and",
-        "any",
-        "are",
-        "as",
-        "at",
-        "be",
-        "because",
-        "been",
-        "before",
-        "being",
-        "below",
-        "between",
-        "both",
-        "but",
-        "by",
-        "can",
-        "could",
-        "did",
-        "do",
-        "does",
-        "doing",
-        "done",
-        "down",
-        "during",
-        "each",
-        "even",
-        "ever",
-        "few",
-        "for",
-        "from",
-        "further",
-        "get",
-        "gets",
-        "getting",
-        "give",
-        "go",
-        "going",
-        "got",
-        "had",
-        "has",
-        "have",
-        "having",
-        "he",
-        "her",
-        "here",
-        "hers",
-        "herself",
-        "him",
-        "himself",
-        "his",
-        "how",
-        "i",
-        "if",
-        "in",
-        "into",
-        "is",
-        "it",
-        "its",
-        "itself",
-        "just",
-        "know",
-        "let",
-        "like",
-        "make",
-        "me",
-        "more",
-        "most",
-        "much",
-        "my",
-        "myself",
-        "need",
-        "no",
-        "nor",
-        "not",
-        "now",
-        "of",
-        "off",
-        "on",
-        "once",
-        "only",
-        "or",
-        "other",
-        "our",
-        "ours",
-        "ourselves",
-        "out",
-        "over",
-        "own",
-        "please",
-        "really",
-        "same",
-        "say",
-        "see",
-        "she",
-        "should",
-        "so",
-        "some",
-        "such",
-        "than",
-        "thank",
-        "thanks",
-        "that",
-        "the",
-        "their",
-        "theirs",
-        "them",
-        "themselves",
-        "then",
-        "there",
-        "these",
-        "they",
-        "this",
-        "those",
-        "through",
-        "to",
-        "too",
-        "under",
-        "until",
-        "up",
-        "us",
-        "use",
-        "using",
-        "very",
-        "want",
-        "was",
-        "we",
-        "well",
-        "were",
-        "what",
-        "when",
-        "where",
-        "which",
-        "while",
-        "who",
-        "whom",
-        "why",
-        "will",
-        "with",
-        "would",
-        "yes",
-        "yet",
-        "you",
-        "your",
-        "yours",
-        "yourself",
-        "yourselves",
-        "one",
-        "two",
-        "way",
-        "thing",
-        "things",
-        "something",
-        "anything",
-        "okay",
-        "ok",
-        "hi",
-        "hello",
-        "hey",
-        "sure",
-        "still",
-        "tell",
-        "write",
-        "show",
-        "new",
-        "good",
-        "im",
-        "i'm",
-        "it's",
-        "don't",
-        "can't",
-        "i've",
-        "i'd",
-        "i'll",
-        "you're",
-        "that's",
-        "what's",
-        "there's",
-        "let's",
-        "doesn't",
-        "isn't",
-        # Request verbs and filler typical of prompts, not of topics.
-        "explain",
-        "help",
-        "create",
-        "generate",
-        "provide",
-        "describe",
-        "example",
-        "examples",
-        "question",
-        "answer",
-        "mean",
-        "means",
-        "better",
-        "best",
-        "different",
-        "difference",
-        "able",
-        "think",
-        "look",
-        "find",
-        "work",
-        "works",
-        "try",
-        "here's",
-        "following",
-    ]
-)
+# French/Italian elisions: "l'histoire" counts as "histoire".
+_ELISION_RE = re.compile(r"\b(?:qu|[cdjlmnst])'(?=\w)")
 
 
-def tokenize(text: str) -> list[str]:
-    """Lower-cased words of prose (code and URLs removed), stop words dropped."""
+def tokenize(text: str, ignored: frozenset[str] = frozenset()) -> list[str]:
+    """Lower-cased words of prose (code and URLs removed), stop words and ``ignored`` dropped."""
     text = strip_citations(text)
     if "`" in text:
         text = _CODE_RE.sub(" ", text)
     if "://" in text:
         text = _URL_RE.sub(" ", text)
-    text = text.lower().replace("’", "'")
-    return [w for w in _WORD_RE.findall(text) if len(w) > 2 and w not in STOPWORDS]
+    text = _ELISION_RE.sub("", text.lower().replace("’", "'"))
+    return [
+        w for w in _WORD_RE.findall(text) if len(w) > 2 and w not in STOPWORDS and w not in ignored
+    ]
 
 
 def frequent_words(stats: Stats, limit: int = 90) -> list[tuple[str, int]]:

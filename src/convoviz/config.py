@@ -28,6 +28,9 @@ layout = "year"
 
 # Write insights.html (charts of your usage).
 insights = true
+# Words to leave out of the word clouds, on top of common filler words in
+# English, French, Spanish, Portuguese, German, Italian and Arabic.
+ignored_words = []
 
 [markdown]
 user_label = "You"
@@ -68,6 +71,7 @@ class Config:
     output: Path = field(default_factory=default_output)
     layout: Layout = "year"
     insights: bool = True
+    ignored_words: frozenset[str] = frozenset()
     render: RenderOptions = field(default_factory=RenderOptions)
 
     def with_overrides(self, **changes: Any) -> Config:
@@ -80,7 +84,7 @@ class Config:
         return config
 
 
-_TOP_KEYS = frozenset({"output", "layout", "insights"})
+_TOP_KEYS = frozenset({"output", "layout", "insights", "ignored_words"})
 
 
 def load_config(path: Path | None = None) -> Config:
@@ -113,6 +117,12 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
         config = replace(config, layout=data["layout"])
     if "insights" in data:
         config = replace(config, insights=_bool(data["insights"], "insights", fail))
+    if "ignored_words" in data:
+        words = data["ignored_words"]
+        if not isinstance(words, list) or not all(isinstance(w, str) for w in words):
+            raise fail('ignored_words must be a list of words, e.g. ["foo", "bar"]')
+        ignored = frozenset(w.strip().lower().replace("’", "'") for w in words if w.strip())
+        config = replace(config, ignored_words=ignored)
 
     markdown = data.get("markdown", {})
     if not isinstance(markdown, dict):

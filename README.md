@@ -127,7 +127,7 @@ convoviz recognizes its notes by their `conversation_id` property, and keeps tra
 | `-y, --yes` | Don't ask before using the export found in Downloads. |
 | `-q, --quiet` / `-v, --verbose` | Less or more output. |
 
-To make settings permanent, run `convoviz config init` and edit the file it creates. `convoviz config path` shows where it is. In that file you can also rename the turn labels ("You", "ChatGPT"), hide timestamps, reasoning or tool output, and set the tags added to every note.
+To make settings permanent, run `convoviz config init` and edit the file it creates. `convoviz config path` shows where it is. In that file you can also rename the turn labels ("You", "ChatGPT"), hide timestamps, reasoning or tool output, set the tags added to every note, and list words to leave out of the word clouds.
 
 ## Something looks wrong?
 

@@ -64,8 +64,9 @@ first reports from users. The design aims to make them visible
   rendered anywhere. They could become an optional note or `index.md` section.
 - **Project names.** Only `project_id` is known. If an export ever carries
   project names, group notes by project.
-- **Word clouds** use an English stop list. Other languages work, but filler
-  words in them may show up. The layout runs in the browser (`_CLOUD_JS` in
+- **Word clouds** drop filler words in English, French, Spanish, Portuguese,
+  German, Italian and Arabic (`stopwords.py`, plus the user's `ignored_words`).
+  Other languages work, but their filler words may show up. The layout runs in the browser (`_CLOUD_JS` in
   `insights.py`, spiral placement on measured text boxes) and isn't covered by
   the Python tests. Check it in a browser, at phone and desktop widths, after
   changing it.

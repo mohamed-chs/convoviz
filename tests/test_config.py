@@ -33,11 +33,12 @@ def test_default_config_file_matches_defaults(tmp_path: Path) -> None:
 def test_values_are_read(tmp_path: Path) -> None:
     path = tmp_path / "c.toml"
     path.write_text(
-        'output = "~/notes"\nlayout = "flat"\n[markdown]\nbranches = "active"\n'
+        'output = "~/notes"\nlayout = "flat"\nignored_words = [" Foo ", "BAR"]\n[markdown]\nbranches = "active"\n'
         'tags = ["ai", "chatgpt"]\ntimezone = "Europe/Paris"\nuser_label = "Me"\n'
     )
     config = load_config(path)
     assert config.layout == "flat"
+    assert config.ignored_words == {"foo", "bar"}
     assert config.output.name == "notes"
     assert "~" not in str(config.output)
     assert config.render.branches == "active"
@@ -51,6 +52,7 @@ def test_values_are_read(tmp_path: Path) -> None:
     [
         "layout = 'tree'",
         "colour = 1",
+        "ignored_words = 'foo'",
         "[markdown]\nbranches = 'some'",
         "[markdown]\ntimestamps = 'yes'",
         "[markdown]\ntimezone = 'Mars/Olympus'",

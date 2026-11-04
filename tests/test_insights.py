@@ -41,10 +41,19 @@ def test_stats() -> None:
 
 
 def test_tokenize_drops_code_urls_and_stopwords() -> None:
-    words = tokenize(
-        "Please explain `foo_bar` and https://x.com/a in Python, déjà vu ```\ncode\n```"
-    )
-    assert words == ["python", "déjà"]
+    words = tokenize("Please explain `foo_bar` and https://x.com/a in Python, café ```\ncode\n```")
+    assert words == ["python", "café"]
+
+
+def test_tokenize_knows_other_languages_and_ignored_words() -> None:
+    text = "Explique-moi l'histoire de Rome, c'est pour quand ? ¿Cómo está la economía? مرحبا، ما هي عاصمة فرنسا"
+    assert tokenize(text, frozenset({"rome"})) == [
+        "explique-moi",
+        "histoire",
+        "economía",
+        "عاصمة",
+        "فرنسا",
+    ]
 
 
 def test_distinctive_words() -> None:

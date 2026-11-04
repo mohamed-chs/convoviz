@@ -17,6 +17,9 @@ versions follow [SemVer](https://semver.org).
   appear in the message that produced them, when the export kept it.
 - A warning when the export's manifest lists files that aren't there, which
   usually means a part of a split download is missing.
+- Word clouds leave out filler words in French, Spanish, Portuguese, German,
+  Italian and Arabic too, not only English, and an `ignored_words` setting
+  leaves out words of your choice.
 
 ### Changed
 

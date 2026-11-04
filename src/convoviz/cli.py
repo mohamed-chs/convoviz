@@ -318,7 +318,7 @@ def _run(paths: list[Path], settings: Config, *, force: bool, quiet: bool) -> in
         )
         extra: dict[str, bytes] = {}
         if settings.insights:
-            stats = compute(export.conversations, settings.render.timezone)
+            stats = compute(export.conversations, settings.render.timezone, settings.ignored_words)
             extra["insights.html"] = render_insights(stats).encode()
         with progress:
             task = progress.add_task("notes", total=len(export.conversations))
