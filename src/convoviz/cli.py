@@ -351,11 +351,13 @@ def _summary(
         if any(n for n, _ in counts)
         else "  nothing to write"
     )
-    if report.attachments_copied or report.attachments_missing:
-        line = f"  {report.attachments_copied} attachment(s) copied"
-        if report.attachments_missing:
-            line += f", {report.attachments_missing} not included in the export"
-        say(line)
+    files = []
+    if copied := report.attachments_copied:
+        files.append(f"{copied} attachment{'s' if copied != 1 else ''} copied")
+    if missing := report.attachments_missing:
+        files.append(f"{missing} attachment{'s' if missing != 1 else ''} not in the export")
+    if files:
+        say("  " + " · ".join(files))
     if report.kept_edits:
         say(
             f"  [yellow]{len(report.kept_edits)} note(s) you edited have newer messages in this "
