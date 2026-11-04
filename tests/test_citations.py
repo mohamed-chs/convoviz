@@ -210,3 +210,16 @@ def test_product_carousels_list_their_products() -> None:
 def test_blank_lines_in_code_survive_tidying() -> None:
     block = render_text("Before\n\n\n\nAfter\n```\na\n\n\n\nb\n```", {}, Diagnostics())
     assert block.text == "Before\n\nAfter\n```\na\n\n\n\nb\n```"
+
+
+def test_unknown_widgets_fall_back_to_alt_and_are_reported() -> None:
+    ref = {
+        "type": "client_defined_widget",
+        "matched_text": "w",
+        "alt": "(a map)",
+        "data": {"widget_type": "maps_widget"},
+    }
+    diagnostics = Diagnostics()
+    block = render_text("Here w.", {"content_references": [ref]}, diagnostics)
+    assert block.text == "Here (a map)."
+    assert diagnostics.unknown["widget:maps_widget"] == 1

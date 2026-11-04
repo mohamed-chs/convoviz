@@ -196,8 +196,11 @@ def _content_reference_replacement(
         data = ref["data"] if isinstance(ref.get("data"), dict) else {}
         if data.get("widget_type") == "charts_widget_v2":
             return _chart_table(data.get("content"))
-        # Code-block widgets: the text already holds their Markdown.
-        return None if data.get("widget_type") == "code_block" else (_alt(ref) or "")
+        widget = data.get("widget_type")
+        if widget == "code_block":
+            return None  # the text already holds the code's Markdown
+        diagnostics.unknown_kind(f"widget:{widget if isinstance(widget, str) else '?'}", "")
+        return _alt(ref) or ""
     if kind in _LINK_TYPES:
         return sources.marker(_sources_from_items(ref))
     if kind == "file":

@@ -31,7 +31,8 @@ def test_census_never_contains_content(tmp_path: Path, workdir: Path) -> None:
         "see https://private.example",
         metadata={
             "content_references": [
-                {"type": "webpage", "url": "https://private.example", "matched_text": "x"}
+                {"type": "webpage", "url": "https://private.example", "matched_text": "x"},
+                {"type": "my private question", "matched_text": "see"},
             ],
             "my private question": 1,
         },
@@ -47,7 +48,8 @@ def test_census_never_contains_content(tmp_path: Path, workdir: Path) -> None:
     for secret in SECRETS:
         assert secret not in dumped
     assert report["shape"]["conversations"] == 1
-    assert report["content_reference_types"] == {"webpage": 1}
+    assert report["content_reference_types"] == {"webpage": 1, "<other>": 1}
+    assert report["parsed"]["unknown"] == {"content_reference:<other>": 1}
     assert report["parsed"]["conversations"] == 1
     assert "conversations-N.json" in report["files"]
 

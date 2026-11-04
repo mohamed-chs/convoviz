@@ -166,10 +166,19 @@ def census(sources: Sequence[ExportSource]) -> dict[str, Any]:
             "errors": len(parse_diagnostics.errors),
             "warnings": len(parse_diagnostics.warnings),
             "skipped": len(parse_diagnostics.skipped),
-            "unknown": _top(parse_diagnostics.unknown),
+            "unknown": _top(Counter(_anonymous_kinds(parse_diagnostics.unknown))),
             "counters": dict(sorted(parse_diagnostics.counters.items())),
         },
     }
+
+
+def _anonymous_kinds(unknown: Counter[str]) -> Counter[str]:
+    """``content_type:<value>`` keys carry export values: keep only identifier-like ones."""
+    out: Counter[str] = Counter()
+    for key, n in unknown.items():
+        prefix, sep, value = key.partition(":")
+        out[f"{prefix}:{_ident(value)}" if sep else _ident(key)] += n
+    return out
 
 
 def _top(counter: Counter[str], limit: int = 50) -> dict[str, int]:

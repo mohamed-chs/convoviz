@@ -31,6 +31,8 @@ versions follow [SemVer](https://semver.org).
 - Generated images get their prompt as a caption when the image itself
   doesn't carry it.
 - AVIF images and QuickTime videos stored as `.dat` get the right extension.
+- `inspect` could include an unrecognized type name verbatim, even one that
+  isn't identifier-like. Those are now replaced by `<other>`.
 
 ## 1.0.0 — 2026-11
 
