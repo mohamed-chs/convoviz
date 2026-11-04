@@ -182,6 +182,8 @@ def test_empty_export(tmp_path: Path, options: RenderOptions) -> None:
         (b"RIFF\x00\x00\x00\x00WAVEfmt ", ".wav"),
         (b"%PDF-1.7", ".pdf"),
         (b"\x00\x00\x00\x18ftypmp42", ".mp4"),
+        (b"\x00\x00\x00\x1cftypavif", ".avif"),
+        (b"\x00\x00\x00\x14ftypqt  ", ".mov"),
         (b"plain text", ".txt"),
         (b"\x00\x01\x02\xff", None),
     ],

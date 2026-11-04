@@ -72,6 +72,10 @@ def sniff_extension(head: bytes) -> str | None:
             return ".heic"
         if brand.startswith((b"M4A", b"M4B")):
             return ".m4a"
+        if brand in (b"avif", b"avis"):
+            return ".avif"
+        if brand == b"qt  ":
+            return ".mov"
         return ".mp4"
     if head[:2] == b"\xff\xfb" or head[:2] == b"\xff\xf3":
         return ".mp3"
