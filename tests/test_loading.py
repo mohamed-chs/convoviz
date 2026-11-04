@@ -122,3 +122,25 @@ def test_asset_index_resolves_dat_files_and_names(tmp_path: Path, load) -> None:
     assert report.mime == "application/pdf"
     assert assets.resolve("sediment://file_00000000bbbb2222") is not None
     assert assets.resolve("sediment://file_doesnotexist") is None
+
+
+def test_inventory_manifest_and_hyphenated_names(tmp_path: Path, load) -> None:
+    """Some reports show ``export_files`` manifests and ``library-files.json``."""
+    path = tmp_path / "e"
+    path.mkdir()
+    for index in range(3):
+        (path / f"conversations-{index:03d}.json").write_text(json.dumps([_conv(index)]))
+    inventory = [
+        {"path": f"conversations-{index:03d}.json", "size_bytes": 10} for index in (2, 0, 1, 3)
+    ]
+    inventory.append({"path": "chat.html", "size_bytes": 1})
+    (path / "Export-Manifest.json").write_text(json.dumps({"export_files": inventory}))
+    (path / "file-Abc123XYZ-report.dat").write_bytes(b"%PDF-1.7")
+    library = [{"file_id": "file-Abc123XYZ", "file_name": "Notes.pdf", "mime_type": "x/y"}]
+    (path / "library-files.json").write_text(json.dumps(library))
+    export, diagnostics = load(path)
+    assert [c.title for c in export.conversations] == ["Chat 0", "Chat 1", "Chat 2"]
+    assert any("conversations-003.json" in e for e in diagnostics.errors)
+    report = export.assets.resolve("file-service://file-Abc123XYZ")
+    assert report is not None
+    assert report.mime == "x/y"

@@ -3,7 +3,8 @@
 Layouts seen in 2026:
 
 * ``conversations.json`` (small accounts) or ``conversations-000.json`` ... shards
-  (large accounts), described by ``export_manifest.json`` ``logical_files``.
+  (large accounts), described by ``export_manifest.json``: either
+  ``logical_files`` or an ``export_files`` inventory of ``{path, size_bytes}``.
 * Attachments at the root as ``file_<hex>.dat`` / ``file-<id>.dat``, with original
   names in ``conversation_asset_file_names.json`` and richer metadata in
   ``library_files.json``.
@@ -104,19 +105,48 @@ def _shard_number(name: str) -> int:
     return int(match.group(1)) if match else -1
 
 
+def root_file(source: ExportSource, name: str) -> Member | None:
+    """A top-level file, ignoring case and ``-`` vs ``_`` (both spellings are reported)."""
+    exact = source.get(name)
+    if exact is not None:
+        return exact
+    key = _name_key(name)
+    return next((m for m in source if "/" not in m.path and _name_key(m.name) == key), None)
+
+
+def _name_key(name: str) -> str:
+    return name.lower().replace("-", "_")
+
+
 def _files_from_manifest(source: ExportSource, diagnostics: Diagnostics) -> list[Member] | None:
-    manifest_member = source.get("export_manifest.json")
+    manifest_member = root_file(source, "export_manifest.json")
     if manifest_member is None:
         return None
     manifest = load_json(manifest_member, diagnostics)
-    logical = manifest.get("logical_files") if isinstance(manifest, dict) else None
+    if not isinstance(manifest, dict):
+        return None
+    logical = manifest.get("logical_files")
     entry = logical.get("conversations.json") if isinstance(logical, dict) else None
     names = entry.get("files") if isinstance(entry, dict) else None
+    if not names and isinstance(manifest.get("export_files"), list):
+        # Inventory form: every file in the export, conversation shards among them.
+        names = [
+            item["path"]
+            for item in manifest["export_files"]
+            if isinstance(item, dict)
+            and isinstance(item.get("path"), str)
+            and CONVERSATION_FILE_RE.match(PurePosixPath(item["path"]).name)
+        ]
+        names.sort(key=lambda n: _shard_number(PurePosixPath(n).name))
     if not isinstance(names, list) or not names:
         return None
     members: list[Member] = []
     for name in names:
-        member = source.get(name) if isinstance(name, str) else None
+        member = (
+            source.get(name) or root_file(source, PurePosixPath(name).name)
+            if isinstance(name, str)
+            else None
+        )
         if member is None:
             diagnostics.error(
                 f"Export manifest lists {name!r}, but it is missing from the export. "
@@ -203,7 +233,7 @@ class AssetIndex:
         return index
 
     def _apply_name_index(self, source: ExportSource, diagnostics: Diagnostics) -> None:
-        member = source.get("conversation_asset_file_names.json")
+        member = root_file(source, "conversation_asset_file_names.json")
         if member is None:
             return
         data = load_json(member, diagnostics)
@@ -221,7 +251,7 @@ class AssetIndex:
                 info.mime = info.mime or _mime_from_name(name)
 
     def _apply_library(self, source: ExportSource, diagnostics: Diagnostics) -> None:
-        member = source.get("library_files.json")
+        member = root_file(source, "library_files.json")
         if member is None:
             return
         data = load_json(member, diagnostics)
