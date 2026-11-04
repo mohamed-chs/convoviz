@@ -510,23 +510,41 @@ def _canvas_update(
 
 
 def _apply_canvas_update(content: str, pattern: str, replacement: str, *, multiple: bool) -> str:
-    """Apply one Canvas regex edit. Patterns are ECMAScript-flavored regexes."""
-    if pattern in (".*", "^.*$", "[\\s\\S]*", "(?s).*"):
-        return replacement
+    """Apply one Canvas edit: a regex ``pattern`` and its ``replacement``.
+
+    Which regex dialect ChatGPT uses isn't documented (reports say Python, others
+    ECMAScript), so the default flags shared by both are used (``.`` doesn't match
+    newlines), and replacement references are understood in both spellings.
+    """
+    if pattern in (".*", "^.*$", "[\\s\\S]*", "(?s).*", "^[\\s\\S]*$"):
+        return replacement  # the usual "rewrite everything"
+    count = 0 if multiple else 1
     try:
-        compiled = re.compile(pattern, re.DOTALL)
+        compiled = re.compile(pattern)
     except re.error:
-        return content.replace(pattern, replacement, 0 if multiple else 1)
-    # JS replacement strings use $1, $&; translate to Python's \g<1>, \g<0>.
-    py_replacement = re.sub(
-        r"\$(\d+|&)",
-        lambda m: "\\g<0>" if m.group(1) == "&" else f"\\g<{m.group(1)}>",
-        replacement.replace("\\", "\\\\"),
-    )
-    try:
-        return compiled.sub(py_replacement, content, count=0 if multiple else 1)
-    except (re.error, IndexError):
-        return compiled.sub(lambda _m: replacement, content, count=0 if multiple else 1)
+        return content.replace(pattern, replacement, -1 if multiple else 1)
+    return compiled.sub(lambda match: _expand(replacement, match), content, count=count)
+
+
+# \g<1> \g<name> \1 (Python) and $1 $& $$ $<name> (ECMAScript).
+_REFERENCE_RE = re.compile(r"\\g<(\w+)>|\\(\d{1,2})|\$(\d{1,2}|&|\$)|\$<(\w+)>")
+
+
+def _expand(template: str, match: re.Match[str]) -> str:
+    """Fill group references in ``template``; every other character is literal."""
+
+    def reference(ref: re.Match[str]) -> str:
+        name = ref.group(1) or ref.group(2) or ref.group(3) or ref.group(4)
+        if name == "$":
+            return "$"
+        if name == "&":
+            return match.group(0)
+        try:
+            return match.group(int(name) if name.isdigit() else name) or ""
+        except (IndexError, re.error):
+            return ref.group(0)  # not a group of this pattern: keep the text
+
+    return _REFERENCE_RE.sub(reference, template)
 
 
 # --------------------------------------------------------------------------- helpers

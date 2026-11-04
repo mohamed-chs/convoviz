@@ -94,6 +94,7 @@ def census(sources: Sequence[ExportSource]) -> dict[str, Any]:
     content_types: Counter[str] = Counter()
     part_types: Counter[str] = Counter()
     recipients: Counter[str] = Counter()
+    channels: Counter[str] = Counter()
     reference_types: Counter[str] = Counter()
     marker_kinds: Counter[str] = Counter()
     shapes: Counter[str] = Counter()
@@ -132,6 +133,8 @@ def census(sources: Sequence[ExportSource]) -> dict[str, Any]:
             recipient = message.get("recipient")
             if recipient not in (None, "all"):
                 recipients[_ident(recipient)] += 1
+            if "channel" in message:
+                channels[f"{_ident(author.get('role'))}:{_ident(message.get('channel'))}"] += 1
             meta = message.get("metadata") if isinstance(message.get("metadata"), dict) else {}
             metadata_keys.update(_ident(k) for k in meta)
             for ref in meta.get("content_references") or []:
@@ -154,6 +157,7 @@ def census(sources: Sequence[ExportSource]) -> dict[str, Any]:
         "content_types": _top(content_types),
         "part_types": _top(part_types),
         "recipients": _top(recipients),
+        "channels": _top(channels),
         "content_reference_types": _top(reference_types),
         "inline_marker_kinds": _top(marker_kinds),
         "parsed": {

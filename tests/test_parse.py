@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 
+import pytest
 from factory import ConversationBuilder
 
 from convoviz.chatgpt.parse import parse_conversation
@@ -269,3 +270,24 @@ def test_timestamps_in_various_shapes() -> None:
     first, second = _messages(builder)
     assert first.time == datetime(2026, 1, 1, tzinfo=UTC)
     assert second.time == datetime(2026, 1, 2, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("content", "pattern", "replacement", "multiple", "expected"),
+    [
+        ("a1 a2", r"a(\d)", r"b\1", True, "b1 b2"),  # Python references
+        ("a1 a2", r"a(\d)", "b$1", False, "b1 a2"),  # ECMAScript references
+        ("x", "x", "$$&[$&]", False, "$&[x]"),
+        ("x", "(?P<n>x)", r"\g<n>$<n>", False, "xx"),
+        ("x", "x", r"\frac{1}{2} \n $9", False, r"\frac{1}{2} \n $9"),  # literal otherwise
+        ("Hello you\nKeep me", "Hello.*", "Hi", False, "Hi\nKeep me"),  # . stops at newlines
+        ("a(b a(b", "a(b", "c", True, "c c"),  # invalid regex: literal text
+        ("old\nlines", ".*", "new", False, "new"),
+    ],
+)
+def test_canvas_update_dialects(
+    content: str, pattern: str, replacement: str, multiple: bool, expected: str
+) -> None:
+    from convoviz.chatgpt.parse import _apply_canvas_update
+
+    assert _apply_canvas_update(content, pattern, replacement, multiple=multiple) == expected

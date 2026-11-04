@@ -43,6 +43,7 @@ of all.
 | Kind | What it is | Rendered as |
 |---|---|---|
 | `author.role == "system"`, `is_visually_hidden_from_conversation` | Prompt scaffolding | hidden |
+| message `channel` (`commentary`, `final`, reported in 2026) | GPT-5-style progress notes vs the answer | not used yet; `inspect` reports `role:channel` counts so we can decide |
 | `user_editable_context`, `model_editable_context`, `about_user_message`/`about_model_message` | Custom instructions, memory context | hidden (captured in `Conversation.extra`) |
 | `tether_browsing_display`, `tether_browsing_code`, `sonic_webpage`, `system_error` | Browsing plumbing | hidden |
 | `thoughts` | Reasoning summary (`thoughts[].summary/content`) | folded "Reasoning" |
@@ -50,7 +51,7 @@ of all.
 | assistant → `python` / `container.exec` / `jupyter` | Code run by the model | folded code |
 | tool `execution_output` (+ `metadata.aggregate_result.messages[].image_url`) | Output and charts | folded output, charts as images |
 | assistant → `canmore.create_textdoc` | Canvas creation (`{name, type, content}`) | open "Canvas" block |
-| assistant → `canmore.update_textdoc` | Canvas edit: `{updates: [{pattern, replacement, multiple}]}`, with ECMAScript regexes and `$1` replacements | edits are replayed on that branch's document, and the full text is shown |
+| assistant → `canmore.update_textdoc` | Canvas edit: `{updates: [{pattern, replacement, multiple}]}`. The regex dialect is unconfirmed (Python `re` with `\1`, or ECMAScript with `$1`) | edits are replayed on that branch's document with the flags both dialects share, both reference spellings are understood, and the full text is shown |
 | tool `multimodal_text` | Generated images (`image_asset_pointer`, prompt in `metadata.dalle.prompt` or `generation.prompt`) | images, status text dropped |
 | `tether_quote` | Quoted page | blockquote with a link |
 | tool `bio` | Memory written | "*Memory updated*" |
