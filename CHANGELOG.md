@@ -13,6 +13,8 @@ versions follow [SemVer](https://semver.org).
   open the archive in Obsidian.
 - `convoviz inspect` with no path uses the newest export in Downloads, like
   `convoviz` does.
+- Config errors say where a misplaced setting belongs (for example,
+  `timezone` goes under `[markdown]`).
 - `--help` no longer shows `[default: False]` next to every flag.
 - The "When you ask" heatmap in `insights.html` is larger and fills its card.
 

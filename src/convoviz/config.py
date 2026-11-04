@@ -85,6 +85,18 @@ class Config:
 
 
 _TOP_KEYS = frozenset({"output", "layout", "insights", "ignored_words"})
+_MARKDOWN_KEYS = frozenset(
+    {
+        "user_label",
+        "assistant_label",
+        "timestamps",
+        "reasoning",
+        "tool_calls",
+        "branches",
+        "tags",
+        "timezone",
+    }
+)
 # Settings that only existed in 0.x config files.
 _LEGACY_KEYS = frozenset(
     {"output_folder", "folder_organization", "outputs", "conversation", "wordcloud", "graph"}
@@ -114,6 +126,8 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
             "next to it as config.toml.bak)."
         )
     unknown = set(data) - {*_TOP_KEYS, "markdown"}
+    if misplaced := sorted(unknown & _MARKDOWN_KEYS):
+        raise fail(f"{', '.join(misplaced)} belongs under [markdown]")
     if unknown:
         raise fail(f"unknown setting(s): {', '.join(sorted(unknown))}")
     config = Config()
@@ -157,16 +171,9 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
         options["tags"] = tuple(t.strip() for t in tags if t.strip())
     if markdown.get("timezone"):
         options["timezone"] = parse_timezone(markdown["timezone"], fail)
-    unknown_md = set(markdown) - {
-        "user_label",
-        "assistant_label",
-        "timestamps",
-        "reasoning",
-        "tool_calls",
-        "branches",
-        "tags",
-        "timezone",
-    }
+    unknown_md = set(markdown) - _MARKDOWN_KEYS
+    if misplaced := sorted(unknown_md & _TOP_KEYS):
+        raise fail(f"{', '.join(misplaced)} belongs above [markdown], at the top of the file")
     if unknown_md:
         raise fail(f"unknown markdown setting(s): {', '.join(sorted(unknown_md))}")
     return replace(config, render=replace(config.render, **options))
@@ -185,7 +192,7 @@ def parse_timezone(name: object, fail: Any = ConfigError) -> ZoneInfo:
     try:
         return ZoneInfo(name)
     except (ZoneInfoNotFoundError, ValueError) as exc:
-        raise fail(f"unknown time zone {name!r}") from exc
+        raise fail(f'unknown time zone {name!r}; use a name such as "Europe/Paris"') from exc
 
 
 def write_default_config(path: Path) -> None:
