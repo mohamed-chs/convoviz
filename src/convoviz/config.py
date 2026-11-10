@@ -57,8 +57,8 @@ class ConfigError(Exception):
 
 
 def default_output() -> Path:
-    """``~/Documents/ChatGPT Archive`` (or the platform's equivalent)."""
-    return Path(platformdirs.user_documents_dir()) / "ChatGPT Archive"
+    """``~/Documents/Chat Archive`` (or the platform's equivalent)."""
+    return Path(platformdirs.user_documents_dir()) / "Chat Archive"
 
 
 def config_path() -> Path:
@@ -159,10 +159,6 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
             if not isinstance(markdown[key], str) or not markdown[key].strip():
                 raise fail(f"markdown.{key} must be a non-empty string")
             options[key] = markdown[key].strip()
-    # Config files written by convoviz 1.0 spell out its defaults, which were
-    # ChatGPT's. They mean "the default", which now follows the provider.
-    if options.get("assistant_label") == "ChatGPT":
-        del options["assistant_label"]
     for key in ("timestamps", "reasoning", "tool_calls"):
         if key in markdown:
             options[key] = _bool(markdown[key], f"markdown.{key}", fail)
@@ -175,8 +171,6 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
         if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
             raise fail("markdown.tags must be a list of strings")
         options["tags"] = tuple(t.strip() for t in tags if t.strip())
-        if options["tags"] == ("chatgpt",):
-            del options["tags"]
     if markdown.get("timezone"):
         options["timezone"] = parse_timezone(markdown["timezone"], fail)
     unknown_md = set(markdown) - _MARKDOWN_KEYS

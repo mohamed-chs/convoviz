@@ -44,7 +44,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/moh
 convoviz
 ```
 
-It finds the newest export in Downloads and writes your archive to `Documents/ChatGPT Archive`.
+It finds the newest export in Downloads and writes your archive to `Documents/Chat Archive`.
 
 <details>
 <summary>New to the terminal?</summary>

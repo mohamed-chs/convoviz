@@ -59,7 +59,7 @@ def test_finds_export_in_downloads(tmp_path: Path, capsys: pytest.CaptureFixture
     _export(downloads, "abc-2026-11-01.zip")
     assert _run(["-y"]) == 0
     assert "abc-2026-11-01.zip" in capsys.readouterr().out
-    assert (tmp_path / "Documents/ChatGPT Archive/index.md").exists()
+    assert (tmp_path / "Documents/Chat Archive/index.md").exists()
 
 
 def test_output_problems_are_reported_without_traceback(
@@ -147,7 +147,7 @@ def test_finds_claude_companions_in_downloads(
     os.utime(stale, (old, old))
     assert _run(["-y"]) == 0
     assert "conversations-000.zip, projects-000.zip (" in capsys.readouterr().out
-    archive = tmp_path / "Documents/ChatGPT Archive"
+    archive = tmp_path / "Documents/Chat Archive"
     assert (archive / "projects/Garden.md").exists()
     assert not (archive / "Claude memory.md").exists()
 

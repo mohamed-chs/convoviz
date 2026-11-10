@@ -100,10 +100,6 @@ first reports from users. The design aims to make them visible
   conversations. Pages are managed files: a renamed project leaves its old
   note behind, like a renamed Canvas. Published artifacts (`frames-000.zip`),
   `design_chats` and Claude Code cloud routines aren't read.
-- **Default output folder** is still `Documents/ChatGPT Archive`, even for a
-  Claude-only export. Renaming it would make existing users' re-runs write a
-  second archive, so it needs the maintainer's call (for example: a neutral
-  name for new users, keeping the old folder when it exists).
 
 ## Conventions worth knowing
 

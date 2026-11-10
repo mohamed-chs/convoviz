@@ -33,8 +33,11 @@ versions follow [SemVer](https://semver.org).
 ### Changed
 
 - The assistant's heading and the note's tag follow the assistant ("Claude",
-  `claude`). `assistant_label = "ChatGPT"` and `tags = ["chatgpt"]` in a config
-  file now mean the same as leaving them out.
+  `claude`). A config file made by 1.0's `config init` sets them to ChatGPT's
+  for every note: run `convoviz config init --force` to get the new defaults.
+- The default output folder is `~/Documents/Chat Archive`. To keep updating an
+  existing archive, pass `-o "~/Documents/ChatGPT Archive"` or set `output` in
+  the config file.
 - `inspect --json` puts ChatGPT's structure under a `chatgpt` key.
 - `index.md` is titled "Conversations" instead of naming ChatGPT.
 - The charts page counts artifacts and files written separately from Canvas,
