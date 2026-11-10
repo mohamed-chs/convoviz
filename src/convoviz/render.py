@@ -222,21 +222,22 @@ def _url(url: str) -> str:
 
 
 def _merge_reasoning(messages: list[Message]) -> list[tuple[Message, Block]]:
-    """Fold a reasoning recap ("Thought for 12s") into the reasoning it summarizes."""
+    """Join back-to-back reasoning into one panel, as ChatGPT shows it.
+
+    Reasoning steps, the progress notes between them and the recap that ends
+    them ("Thought for 12s", which names the panel) become a single block.
+    """
     pairs: list[tuple[Message, Block]] = []
     for message in messages:
         for block in message.blocks:
             previous = pairs[-1][1] if pairs else None
             if (
                 isinstance(block, ReasoningBlock)
-                and not block.text
                 and isinstance(previous, ReasoningBlock)
-                and previous.text
+                and not previous.title  # a recap closes the panel
             ):
-                pairs[-1] = (
-                    pairs[-1][0],
-                    ReasoningBlock(previous.text, block.title or previous.title),
-                )
+                text = "\n\n".join(t for t in (previous.text, block.text) if t)
+                pairs[-1] = (pairs[-1][0], ReasoningBlock(text, block.title or previous.title))
                 continue
             pairs.append((message, block))
     return pairs
@@ -276,8 +277,8 @@ class _Renderer:
                 continue
             if turn and (item.role == "user") != (turn[0].role == "user"):
                 flush()
-            elif turn and item.role == "user":
-                flush()  # two user messages in a row stay separate turns
+            elif turn and (item.role == "user" or item.scheduled):
+                flush()  # two prompts in a row, or a scheduled run: separate turns
             turn.append(item)
         flush()
         return "\n\n".join(out)

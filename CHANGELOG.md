@@ -5,6 +5,16 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+### Fixed
+
+- Progress notes that reasoning models write between thinking steps
+  ("Checking the docs…") are folded into the reasoning again. Recent exports
+  no longer mark them, so they showed up as part of the answer.
+- A turn's reasoning is one folded panel, named by its recap ("Thought for
+  12s"), instead of one panel per step.
+- Each run of a scheduled task is its own reply, with its own time. Before,
+  every run was joined under the first one.
+
 ## 1.0.1 — 2026-11
 
 ### Changed

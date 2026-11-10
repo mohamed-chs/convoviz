@@ -34,6 +34,7 @@ of all.
 | **Nodes no longer list `children`**, only `parent`. | high | The tree is always rebuilt from `parent`. Legacy `children` is only a hint for nodes whose parent pointer is missing. |
 | `current_node` is the leaf the user last viewed, and it may be missing or dangling. | high | Falls back to the most recent leaf. |
 | Messages may lack `status`, `weight`, `create_time`, `metadata`. | high | Everything is optional. Times also accept milliseconds and ISO strings. |
+| 2026 messages also lack `recipient`, `channel` and `is_thinking_preamble_message`, and tool and system messages are left out ([chatgpt-exporter, Nov 5](https://github.com/pionxzh/chatgpt-exporter/commit/8e5bd2a4)). | med | A missing `recipient` means `all`. Preambles are recognized without their flag (below). |
 | `parts` items are strings, `{content_type: "text", text}` objects, or asset pointers. | high | Handled. |
 | Interrupted final replies can be empty. | high | Empty messages are dropped. |
 | Strings may contain unpaired UTF-16 surrogates (emoji split in two). | low | orjson is tried first, then a `surrogatepass` fallback re-pairs them (with a warning). |
@@ -108,7 +109,14 @@ and Nexus, med confidence):
   document sections, and directives inside code are left alone.
 
 - `metadata.is_thinking_preamble_message: true`: a progress note shown in the
-  thinking panel. Rendered with the reasoning.
+  thinking panel. The 2026 export drops the flag but keeps the notes, so a
+  text reply followed by a `thoughts` or `reasoning_recap` step is taken for
+  one too (counted as `inferred_preambles`). Both are rendered with the
+  reasoning, and back-to-back reasoning up to its recap is one panel.
+- `metadata.automation_id`: set on each run of a scheduled task. Runs follow
+  each other with no user message in between
+  ([chatgpt-exporter, Nov 5](https://github.com/pionxzh/chatgpt-exporter/commit/8b924f57)).
+  Each run gets its own heading and time.
 - `metadata.model_dil_v2.fallbackMarkdown`: interactive replies keep widget
   markup (`<box>`, `DIL.useState(…)`) in `parts` and their Markdown version
   here, with `<escape>x</escape>` around literal characters. The Markdown is

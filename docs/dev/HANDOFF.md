@@ -4,7 +4,7 @@ Current state of the project: what exists, what's known to be missing, and
 where to go next. Keep this describing the present, not the history (that is
 `CHANGELOG.md` and git).
 
-## State (v1.0.0, November 2026)
+## State (v1.0.1, November 2026)
 
 A ground-up rewrite (branch `overhaul`) for the 2026 export format. The full
 pipeline is in place and tested on synthetic exports: reading (all known
@@ -52,9 +52,13 @@ first reports from users. The design aims to make them visible
   plumbing is hidden. Whether the final report always arrives as a normal
   assistant message is unverified.
 - **Message `channel`.** 2026 reports mention `channel: "commentary"` vs
-  `"final"` on assistant messages. Both are rendered as normal text for now.
-  `inspect` counts `role:channel` pairs, so a report will show whether
-  commentary should be folded like reasoning.
+  `"final"` on assistant messages, while chatgpt-exporter says official
+  exports drop `channel` (and `recipient`) entirely. It isn't used. `inspect`
+  counts `role:channel` pairs if it ever shows up.
+- **Inferred preambles.** A text reply followed by a reasoning step is folded
+  into the reasoning even without `is_thinking_preamble_message`. If a report
+  shows real answers disappearing into the reasoning panel, look at
+  `inferred_preambles` first.
 - **Insights cover the current export only.** Conversations kept in the
   archive from older exports but missing from the new one aren't counted.
 - **Canvas.** Every edit renders the whole document again (in an open

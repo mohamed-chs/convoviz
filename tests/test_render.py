@@ -5,7 +5,7 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
-from factory import ConversationBuilder
+from factory import ConversationBuilder, thinking_turn
 
 from convoviz.chatgpt.parse import parse_conversation
 from convoviz.diagnostics import Diagnostics
@@ -277,3 +277,33 @@ def test_inline_drafts_are_labelled(options: RenderOptions) -> None:
         "<details open>\n<summary>🗎 Email: Q3 &lt;plan&gt;</summary>\n\nHi team,\n\n### Agenda"
         in text
     )
+
+
+def test_a_thinking_turn_is_one_panel(options: RenderOptions) -> None:
+    builder = ConversationBuilder()
+    thinking_turn(builder)
+    note = _render(builder.build(), options)
+    assert note.count("<details>") == 1
+    assert "<summary>Thought for 9s</summary>" in note
+    assert note.index("Checking the docs.") < note.index("</details>") < note.index("The answer.")
+
+
+def test_a_recap_closes_the_panel(options: RenderOptions) -> None:
+    builder = ConversationBuilder()
+    builder.user("q")
+    for recap in ("Thought for 3s", "Thought for 5s"):
+        builder.add("assistant", {"content_type": "thoughts", "thoughts": [{"content": "hm"}]})
+        builder.add("assistant", {"content_type": "reasoning_recap", "content": recap})
+    builder.assistant("a")
+    note = _render(builder.build(), options)
+    assert "<summary>Thought for 3s</summary>" in note
+    assert "<summary>Thought for 5s</summary>" in note
+
+
+def test_each_scheduled_run_is_its_own_reply(options: RenderOptions) -> None:
+    builder = ConversationBuilder()
+    builder.user("Every morning, the weather")
+    builder.assistant("Scheduled.")
+    builder.assistant("Sunny.", metadata={"automation_id": "auto_1"})
+    builder.assistant("Rain.", metadata={"automation_id": "auto_1"})
+    assert _render(builder.build(), options).count("## ChatGPT") == 3
