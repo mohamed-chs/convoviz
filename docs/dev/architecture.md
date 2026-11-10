@@ -20,6 +20,7 @@ input paths ─► source.py ─► export.py ─► load.py ─┬─► chatgp
 | `chatgpt/parse.py` | Raw conversation dict → `Conversation`. Every judgement about ChatGPT's message zoo lives here: what is hidden, what a tool call becomes, and how Canvas edits are replayed per branch. |
 | `chatgpt/citations.py` | Private-use citation markers and `content_references` → neutral `Source`s, with encoded markers in the text. |
 | `chatgpt/textfix.py` | ChatGPT-only prose cleanups (`:::writing{}` directives, `sandbox:` links). |
+| `claude/extras.py` | Projects (`projects/*.json`) and memory (`memories/*.json`) → `Project` and `Memory`, rendered as `projects/<name>.md` and `Claude memory.md`. Matched by path, including a ZIP's single top folder (`ExportSource.root_prefix`). |
 | `claude/parse.py` | claude.ai conversation → `Conversation` (format: `claude-export-format.md`). Builds the tree from `parent_message_uuid`, normalizes renamed tools, replays artifact and file edits per branch, turns citations into `Source`s, and shows attachments' extracted text. Claude's export never contains uploaded or generated files, so those are named but missing. |
 | `model.py` | The provider-neutral model: `Conversation` → `Node` tree → `Message` → typed blocks. |
 | `tree.py` | Rebuilds the tree from `parent` links, picks the active branch, and linearizes it into a `Thread` with `Fork`s for the alternatives. |
@@ -28,7 +29,7 @@ input paths ─► source.py ─► export.py ─► load.py ─┬─► chatgp
 | `markdown.py` | Code-aware text utilities: transform prose without touching code, close fences, math delimiters, escaping. |
 | `fsnames.py` | Safe file names that keep any script (Cyrillic, CJK, emoji…). |
 | `assets.py` | Copies attachments under readable names with real extensions (magic-byte sniffing for `.dat`). |
-| `writer.py` | Output layout and the incremental `state.json` logic. Writes `index.md`, `Conversations.base`, `Custom instructions.md` and the `canvas/` and `artifacts/` files. |
+| `writer.py` | Output layout and the incremental `state.json` logic. Writes `index.md`, `Conversations.base`, `Custom instructions.md`, `Claude memory.md`, and the `canvas/`, `artifacts/` and `projects/` files. |
 | `stats.py` / `insights.py` | Usage aggregates → a self-contained HTML page of hand-built SVG charts. |
 | `census.py` | The anonymous structure report behind `convoviz inspect`. |
 | `config.py` / `cli.py` | TOML settings (validated, with clear errors) and the cyclopts CLI. |

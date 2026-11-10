@@ -16,9 +16,17 @@ versions follow [SemVer](https://semver.org).
 - ChatGPT and Claude exports can go into one archive. Notes say which
   assistant they're from (`source` property, new "Assistant" column in
   `Conversations.base`), and the charts page names both.
-- The other ZIPs of a Claude export (projects, memories, …) can be passed
-  along and are skipped. Passing the export's `manifest-….json` explains which
-  file to download instead.
+- Claude projects: pass `projects-000.zip` along and each project gets a note
+  under `projects/` with its description and instructions, and its knowledge
+  documents saved next to it as text.
+- Claude memory: pass `memories-000.zip` along for a `Claude memory.md` page
+  with what Claude remembered about you.
+- The export's other ZIPs (account details, feedback, …) can be passed along
+  and are skipped. Passing the export's `manifest-….json` explains which file
+  to download instead. `index.md` links the projects and memory pages.
+- Run with no path, convoviz also picks up the `projects-000.zip` and
+  `memories-000.zip` downloaded within a day of the newest Claude
+  `conversations-000.zip` in Downloads.
 - `convoviz inspect` reports a Claude export's structure too, in its own
   section.
 

@@ -24,7 +24,7 @@
 
 ## Quick start
 
-**1.** In ChatGPT, open **Settings → Data controls → Export data**, and download the ZIP from the email. In Claude, open **Settings → Privacy → Export data**; the email links to several ZIPs, and `conversations-000.zip` is the one convoviz needs.
+**1.** In ChatGPT, open **Settings → Data controls → Export data**, and download the ZIP from the email. In Claude, open **Settings → Privacy → Export data**; the email links to several ZIPs: `conversations-000.zip` is the one convoviz needs, and `projects-000.zip` and `memories-000.zip` add your projects and Claude's memory.
 
 **2.** Install convoviz:
 
@@ -179,7 +179,7 @@ No. The notes are standard Markdown and open in VS Code, on GitHub, or in any Ma
 
 ChatGPT's 2026 format: the ZIP, an extracted folder, or `conversations.json`, including split and multi-part exports. Business and Enterprise workspaces can't export.
 
-Claude's export from claude.ai: `conversations-000.zip` (or the single ZIP older exports came as), an extracted folder, or `conversations.json`. Pass the other ZIPs too if you like; they're skipped. Exports from both assistants can go into one archive: `convoviz chatgpt.zip conversations-000.zip`.
+Claude's export from claude.ai: `conversations-000.zip` (or the single ZIP older exports came as), an extracted folder, or `conversations.json`. Add `projects-000.zip` and `memories-000.zip` to get a note per project (instructions and knowledge files) and a page of Claude's memory; other ZIPs are skipped. Exports from both assistants can go into one archive: `convoviz chatgpt.zip conversations-000.zip`.
 </details>
 
 <details>

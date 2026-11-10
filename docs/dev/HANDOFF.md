@@ -94,11 +94,12 @@ first reports from users. The design aims to make them visible
   - citation offsets (`_word_end` nudges markers to word ends in case they
     count UTF-16 units);
   - `md_citations` on artifacts and `citations_grouping_mode`, not used yet.
-  Not read yet: `projects/*.json` (names, instructions, knowledge docs) and
-  `memories/*.json`. Conversations carry no project link, so grouping notes by
-  project isn't possible; a "Projects" page and a "Memories" page (like
-  `Custom instructions.md`) are the natural next steps. Published artifacts
-  (`frames-000.zip`) and Claude Code cloud routines aren't read either.
+  Projects (`projects/<name>.md` plus knowledge docs as text) and memory
+  (`Claude memory.md`) are read from their ZIPs (`claude/extras.py`).
+  Conversations carry no project link, so project notes can't list their
+  conversations. Pages are managed files: a renamed project leaves its old
+  note behind, like a renamed Canvas. Published artifacts (`frames-000.zip`),
+  `design_chats` and Claude Code cloud routines aren't read.
 - **Default output folder** is still `Documents/ChatGPT Archive`, even for a
   Claude-only export. Renaming it would make existing users' re-runs write a
   second archive, so it needs the maintainer's call (for example: a neutral
