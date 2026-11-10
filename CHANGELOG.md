@@ -43,7 +43,9 @@ versions follow [SemVer](https://semver.org).
   its old name is removed (unless you changed it).
 - `index.md` is titled "Conversations" instead of naming ChatGPT.
 - The charts page counts artifacts and files written separately from Canvas,
-  and no longer counts connector calls as code run.
+  and no longer counts connector calls as code run. Replies whose model the
+  export doesn't name (all of Claude's) count under the assistant's name in
+  the models chart instead of being left out.
 
 ## 1.0.2 — 2026-11
 

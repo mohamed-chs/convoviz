@@ -45,6 +45,7 @@ from convoviz.render import (
     render_project,
 )
 from convoviz.source import ExportSource
+from convoviz.stats import compute
 from convoviz.tree import Fork, linearize
 
 
@@ -540,3 +541,10 @@ def test_golden_claude_conversation() -> None:
     if os.environ.get("UPDATE_GOLDEN") or not GOLDEN.exists():
         GOLDEN.write_text(text, encoding="utf-8")
     assert text == GOLDEN.read_text(encoding="utf-8")
+
+
+def test_stats_count_claude_replies_and_features() -> None:
+    stats = compute([_parse(rich_claude_conversation())], UTC)
+    assert stats.providers == {"claude": 1}
+    assert stats.models_per_month == {"2026-01": {"Claude": 2}}
+    assert {"reasoning", "web", "code", "artifacts", "upload"} <= set(stats.features)

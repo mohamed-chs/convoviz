@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from convoviz.model import (
+    ASSISTANT_NAMES,
     AttachmentBlock,
     CodeBlock,
     DocumentBlock,
@@ -118,9 +119,13 @@ def compute(
                 stats.lengths[bucket_label(low, high)] += 1
                 break
         used: set[str] = set()
+        # Claude's export names no model per reply: those count under the assistant.
+        unknown = conversation.default_model or ASSISTANT_NAMES.get(
+            conversation.provider, conversation.provider
+        )
         # One reply is often several stored messages (reasoning, tool calls,
         # answer). Count it once, for the model of its last message.
-        reply: tuple[datetime, str | None] | None = None
+        reply: tuple[datetime, str] | None = None
         for message in messages:
             used |= _features(message)
             when = (message.time or conversation.created).astimezone(tz)
@@ -129,7 +134,7 @@ def compute(
                 reply = None
                 _count_prompt(stats, message, when, ignored_words)
             elif message.role == "assistant":
-                reply = (when, message.model or (reply[1] if reply else None))
+                reply = (when, message.model or (reply[1] if reply else unknown))
         _count_reply(stats, reply)
         stats.features.update(used)
     if stats.per_day:
@@ -137,13 +142,12 @@ def compute(
     return stats
 
 
-def _count_reply(stats: Stats, reply: tuple[datetime, str | None] | None) -> None:
+def _count_reply(stats: Stats, reply: tuple[datetime, str] | None) -> None:
     if reply is None:
         return
     when, model = reply
     stats.replies += 1
-    if model:
-        stats.models_per_month[f"{when:%Y-%m}"][model] += 1
+    stats.models_per_month[f"{when:%Y-%m}"][model] += 1
 
 
 def _count_prompt(stats: Stats, message: Message, when: datetime, ignored: frozenset[str]) -> None:
