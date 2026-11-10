@@ -450,6 +450,9 @@ def _summary(
             f"{'was' if report.deleted_skipped == 1 else 'were'} not recreated "
             "(--force brings them back).[/]"
         )
+    if report.removed_files:
+        files = _plural(report.removed_files, "file")
+        say(f"  Removed {files} for renamed documents or projects")
     if report.kept_files:
         names = escape(", ".join(report.kept_files))
         say(

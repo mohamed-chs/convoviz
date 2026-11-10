@@ -39,6 +39,8 @@ versions follow [SemVer](https://semver.org).
   existing archive, pass `-o "~/Documents/ChatGPT Archive"` or set `output` in
   the config file.
 - `inspect --json` puts ChatGPT's structure under a `chatgpt` key.
+- When a Canvas document, artifact or project is renamed, the file saved under
+  its old name is removed (unless you changed it).
 - `index.md` is titled "Conversations" instead of naming ChatGPT.
 - The charts page counts artifacts and files written separately from Canvas,
   and no longer counts connector calls as code run.

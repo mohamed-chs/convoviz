@@ -31,7 +31,6 @@ def test_default_config_file_matches_defaults(tmp_path: Path) -> None:
     assert "{output}" in DEFAULT_CONFIG
 
 
-
 def test_values_are_read(tmp_path: Path) -> None:
     path = tmp_path / "c.toml"
     path.write_text(

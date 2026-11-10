@@ -66,9 +66,9 @@ first reports from users. The design aims to make them visible
   per turn might read better. The final version on the active branch is also
   saved under `canvas/` (`render.document_files`, named by document title
   plus the conversation id so names are stable; Claude's artifacts and files
-  go to `artifacts/` the same way). Files of conversations whose
-  document was renamed aren't cleaned up; titles of Canvas documents don't
-  change in practice.
+  go to `artifacts/` the same way). `state.json` records each generated
+  file's owner (`conversation:<id>`, `project:<id>`), and files an owner no
+  longer produces are removed if unchanged (`Writer._remove_outdated`).
 - **Custom instructions** go to `Custom instructions.md` (one section per
   distinct version, newest first), written by the Writer as a managed file.
   Memory snapshots (`model_editable_context`, reportedly `model_set_context`
@@ -97,8 +97,7 @@ first reports from users. The design aims to make them visible
   Projects (`projects/<name>.md` plus knowledge docs as text) and memory
   (`Claude memory.md`) are read from their ZIPs (`claude/extras.py`).
   Conversations carry no project link, so project notes can't list their
-  conversations. Pages are managed files: a renamed project leaves its old
-  note behind, like a renamed Canvas. Published artifacts (`frames-000.zip`),
+  conversations. Published artifacts (`frames-000.zip`),
   `design_chats` and Claude Code cloud routines aren't read.
 
 ## Conventions worth knowing
