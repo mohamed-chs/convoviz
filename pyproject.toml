@@ -1,6 +1,6 @@
 [project]
 name = "convoviz"
-version = "1.0.1"
+version = "1.0.2"
 description = "Export your ChatGPT history to Markdown: readable notes for Obsidian, plus private charts and word clouds of how you use ChatGPT."
 readme = "README.md"
 requires-python = ">=3.12"

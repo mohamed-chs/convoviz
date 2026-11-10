@@ -5,6 +5,8 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+## 1.0.2 — 2026-11
+
 ### Fixed
 
 - Progress notes that reasoning models write between thinking steps
