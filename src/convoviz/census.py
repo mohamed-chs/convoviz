@@ -14,9 +14,9 @@ from collections import Counter
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any
 
-from convoviz.chatgpt import load_export
-from convoviz.chatgpt.files import iter_raw_conversations
 from convoviz.diagnostics import Diagnostics
+from convoviz.export import iter_raw_conversations
+from convoviz.load import load_export
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -79,97 +79,222 @@ _KNOWN_STEMS = frozenset(
         "group_chats",
         "dalle-generations",
         "audio",
+        "projects",
+        "memories",
+        "login_history",
     }
 )
 
 
 def census(sources: Sequence[ExportSource]) -> dict[str, Any]:
-    """Collect the anonymous structure report."""
+    """Collect the anonymous structure report: one section per provider found."""
     files: Counter[str] = Counter(normalize_member_name(m.path) for s in sources for m in s)
-    conv_keys: Counter[str] = Counter()
-    node_keys: Counter[str] = Counter()
-    message_keys: Counter[str] = Counter()
-    metadata_keys: Counter[str] = Counter()
-    roles: Counter[str] = Counter()
-    content_types: Counter[str] = Counter()
-    part_types: Counter[str] = Counter()
-    recipients: Counter[str] = Counter()
-    channels: Counter[str] = Counter()
-    reference_types: Counter[str] = Counter()
-    marker_kinds: Counter[str] = Counter()
-    shapes: Counter[str] = Counter()
-
+    chatgpt = _ChatGPTCensus()
+    claude = _ClaudeCensus()
     diagnostics = Diagnostics()
-    raws = (raw for source in sources for _, raw in iter_raw_conversations(source, diagnostics))
-    for raw in raws:
-        shapes["conversations"] += 1
-        conv_keys.update(_ident(k) for k in raw)
-        mapping = raw.get("mapping")
-        if not isinstance(mapping, dict):
-            shapes["conversations_without_mapping"] += 1
-            continue
-        for node in mapping.values():
-            if not isinstance(node, dict):
-                shapes["non_object_nodes"] += 1
-                continue
-            shapes["nodes"] += 1
-            node_keys.update(_ident(k) for k in node)
-            message = node.get("message")
-            if not isinstance(message, dict):
-                continue
-            shapes["messages"] += 1
-            message_keys.update(_ident(k) for k in message)
-            author = message.get("author") if isinstance(message.get("author"), dict) else {}
-            roles[_ident(author.get("role"))] += 1
-            content = message.get("content") if isinstance(message.get("content"), dict) else {}
-            content_types[_ident(content.get("content_type"))] += 1
-            for part in content.get("parts") or []:
-                if isinstance(part, dict):
-                    part_types[_ident(part.get("content_type"))] += 1
-                else:
-                    part_types[f"<{type(part).__name__}>"] += 1
-                    if isinstance(part, str):
-                        marker_kinds.update(_ident(k) for k in _MARKER_KIND_RE.findall(part))
-            recipient = message.get("recipient")
-            if recipient not in (None, "all"):
-                recipients[_ident(recipient)] += 1
-            if "channel" in message:
-                channels[f"{_ident(author.get('role'))}:{_ident(message.get('channel'))}"] += 1
-            meta = message.get("metadata") if isinstance(message.get("metadata"), dict) else {}
-            metadata_keys.update(_ident(k) for k in meta)
-            for ref in meta.get("content_references") or []:
-                if isinstance(ref, dict):
-                    reference_types[_ident(ref.get("type"))] += 1
+    for source in sources:
+        for _, provider, raw in iter_raw_conversations(source, diagnostics):
+            (chatgpt if provider == "chatgpt" else claude).add(raw)
 
     parse_diagnostics = Diagnostics()
     loaded = load_export(sources, parse_diagnostics)
-    return {
+    report: dict[str, Any] = {
         "convoviz": _version(),
         "python": platform.python_version(),
         "platform": platform.system(),
         "files": dict(sorted(files.items())),
-        "shape": dict(shapes),
-        "conversation_keys": _top(conv_keys),
-        "node_keys": _top(node_keys),
-        "message_keys": _top(message_keys),
-        "metadata_keys": _top(metadata_keys, 80),
-        "author_roles": _top(roles),
-        "content_types": _top(content_types),
-        "part_types": _top(part_types),
-        "recipients": _top(recipients),
-        "channels": _top(channels),
-        "content_reference_types": _top(reference_types),
-        "inline_marker_kinds": _top(marker_kinds),
-        "parsed": {
-            "conversations": len(loaded.conversations),
-            "attachments_indexed": len(loaded.assets.by_member),
-            "errors": len(parse_diagnostics.errors),
-            "warnings": len(parse_diagnostics.warnings),
-            "skipped": len(parse_diagnostics.skipped),
-            "unknown": _top(Counter(_anonymous_kinds(parse_diagnostics.unknown))),
-            "counters": dict(sorted(parse_diagnostics.counters.items())),
-        },
     }
+    if chatgpt.shapes["conversations"]:
+        report["chatgpt"] = chatgpt.report()
+    if claude.shapes["conversations"]:
+        report["claude"] = claude.report()
+    report["parsed"] = {
+        "conversations": len(loaded.conversations),
+        "attachments_indexed": len(loaded.assets.by_member),
+        "projects": len(loaded.projects),
+        "project_docs": sum(len(p.docs) for p in loaded.projects),
+        "memory_files": len(loaded.memory.files) if loaded.memory else 0,
+        "errors": len(parse_diagnostics.errors),
+        "warnings": len(parse_diagnostics.warnings),
+        "skipped": len(parse_diagnostics.skipped),
+        "unknown": _top(Counter(_anonymous_kinds(parse_diagnostics.unknown))),
+        "counters": dict(sorted(_anonymous_kinds(parse_diagnostics.counters).items())),
+    }
+    return report
+
+
+class _ChatGPTCensus:
+    """Keys and type tags of ChatGPT's ``mapping`` trees."""
+
+    def __init__(self) -> None:
+        self.shapes: Counter[str] = Counter()
+        self.counters: dict[str, Counter[str]] = {
+            name: Counter()
+            for name in (
+                "conversation_keys",
+                "node_keys",
+                "message_keys",
+                "metadata_keys",
+                "author_roles",
+                "content_types",
+                "part_types",
+                "recipients",
+                "channels",
+                "content_reference_types",
+                "inline_marker_kinds",
+            )
+        }
+
+    def add(self, raw: dict[str, Any]) -> None:
+        c = self.counters
+        self.shapes["conversations"] += 1
+        c["conversation_keys"].update(_ident(k) for k in raw)
+        mapping = raw.get("mapping")
+        if not isinstance(mapping, dict):
+            self.shapes["conversations_without_mapping"] += 1
+            return
+        for node in mapping.values():
+            if not isinstance(node, dict):
+                self.shapes["non_object_nodes"] += 1
+                continue
+            self.shapes["nodes"] += 1
+            c["node_keys"].update(_ident(k) for k in node)
+            message = node.get("message")
+            if isinstance(message, dict):
+                self._message(message)
+
+    def _message(self, message: dict[str, Any]) -> None:
+        c = self.counters
+        self.shapes["messages"] += 1
+        c["message_keys"].update(_ident(k) for k in message)
+        author = _obj(message.get("author"))
+        c["author_roles"][_ident(author.get("role"))] += 1
+        content = _obj(message.get("content"))
+        c["content_types"][_ident(content.get("content_type"))] += 1
+        for part in content.get("parts") or []:
+            if isinstance(part, dict):
+                c["part_types"][_ident(part.get("content_type"))] += 1
+            else:
+                c["part_types"][f"<{type(part).__name__}>"] += 1
+                if isinstance(part, str):
+                    c["inline_marker_kinds"].update(
+                        _ident(k) for k in _MARKER_KIND_RE.findall(part)
+                    )
+        recipient = message.get("recipient")
+        if recipient not in (None, "all"):
+            c["recipients"][_ident(recipient)] += 1
+        if "channel" in message:
+            c["channels"][f"{_ident(author.get('role'))}:{_ident(message.get('channel'))}"] += 1
+        meta = _obj(message.get("metadata"))
+        c["metadata_keys"].update(_ident(k) for k in meta)
+        for ref in meta.get("content_references") or []:
+            if isinstance(ref, dict):
+                c["content_reference_types"][_ident(ref.get("type"))] += 1
+
+    def report(self) -> dict[str, Any]:
+        limits = {"metadata_keys": 80}
+        return {
+            "shape": dict(self.shapes),
+            **{name: _top(c, limits.get(name, 50)) for name, c in self.counters.items()},
+        }
+
+
+class _ClaudeCensus:
+    """Keys and type tags of claude.ai's ``chat_messages`` and their content blocks.
+
+    Connector (MCP) tool names are reported only as ``<mcp>``: a server's name
+    can say where someone works.
+    """
+
+    def __init__(self) -> None:
+        self.shapes: Counter[str] = Counter()
+        self.counters: dict[str, Counter[str]] = {
+            name: Counter()
+            for name in (
+                "conversation_keys",
+                "message_keys",
+                "senders",
+                "block_types",
+                "block_keys",
+                "tool_names",
+                "tool_input_keys",
+                "tool_result_item_types",
+                "citation_detail_types",
+                "attachment_keys",
+                "attachment_file_types",
+                "file_keys",
+            )
+        }
+
+    def add(self, raw: dict[str, Any]) -> None:
+        c = self.counters
+        self.shapes["conversations"] += 1
+        c["conversation_keys"].update(_ident(k) for k in raw)
+        messages = raw.get("chat_messages", raw.get("messages"))
+        parents: Counter[str] = Counter()
+        for message in messages if isinstance(messages, list) else ():
+            if not isinstance(message, dict):
+                self.shapes["non_object_messages"] += 1
+                continue
+            self._message(message)
+            parent = message.get("parent_message_uuid")
+            if isinstance(parent, str):
+                parents[parent] += 1
+        if any(n > 1 for n in parents.values()):
+            self.shapes["conversations_with_branches"] += 1
+
+    def _message(self, message: dict[str, Any]) -> None:
+        c = self.counters
+        self.shapes["messages"] += 1
+        c["message_keys"].update(_ident(k) for k in message)
+        c["senders"][_ident(message.get("sender"))] += 1
+        for attachment in _objects(message.get("attachments")):
+            c["attachment_keys"].update(_ident(k) for k in attachment)
+            c["attachment_file_types"][_ident(attachment.get("file_type"))] += 1
+        for file in _objects(message.get("files")):
+            c["file_keys"].update(_ident(k) for k in file)
+        for block in _objects(message.get("content")):
+            kind = _ident(block.get("type"))
+            c["block_types"][kind] += 1
+            c["block_keys"].update(f"{kind}.{_ident(k)}" for k in block)
+            if kind == "tool_use":
+                name = _tool_ident(block.get("name"))
+                c["tool_names"][name] += 1
+                if name != "<mcp>":
+                    c["tool_input_keys"].update(
+                        f"{name}.{_ident(k)}" for k in _obj(block.get("input"))
+                    )
+            elif kind == "tool_result":
+                for item in _objects(block.get("content")):
+                    c["tool_result_item_types"][_ident(item.get("type"))] += 1
+            for citation in _objects(block.get("citations")):
+                details = _obj(citation.get("details"))
+                c["citation_detail_types"][_ident(details.get("type"))] += 1
+
+    def report(self) -> dict[str, Any]:
+        return {
+            "shape": dict(self.shapes),
+            **{
+                name: _top(c, 80 if name == "block_keys" else 50)
+                for name, c in self.counters.items()
+            },
+        }
+
+
+def _tool_ident(name: object) -> str:
+    if isinstance(name, str) and (
+        name.startswith("mcp__") or (":" in name and not name.startswith("visualize:"))
+    ):
+        return "<mcp>"
+    return _ident(name)
+
+
+def _obj(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _objects(value: object) -> list[dict[str, Any]]:
+    return [v for v in value if isinstance(v, dict)] if isinstance(value, list) else []
 
 
 def _anonymous_kinds(unknown: Counter[str]) -> Counter[str]:

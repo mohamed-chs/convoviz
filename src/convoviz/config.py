@@ -34,17 +34,19 @@ ignored_words = []
 
 [markdown]
 user_label = "You"
-assistant_label = "ChatGPT"
+# Heading of the assistant's turns. Default: its name, "ChatGPT" or "Claude".
+# assistant_label = "AI"
 # Show the time of each turn next to its heading.
 timestamps = true
 # "all": edited/regenerated alternatives are kept, folded at the point they diverge.
-# "active": only the branch you last saw in ChatGPT.
+# "active": only the branch you last saw (for Claude: the most recent one).
 branches = "all"
 # Include the model's reasoning summaries (folded).
 reasoning = true
 # Include code the assistant ran, its output, and quoted web pages (folded).
 tool_calls = true
-tags = ["chatgpt"]
+# Tags on every note. Default: where it comes from, "chatgpt" or "claude".
+# tags = ["ai-chat"]
 # IANA time zone for dates, e.g. "Europe/Paris". Empty: this computer's time zone.
 timezone = ""
 """
@@ -55,8 +57,8 @@ class ConfigError(Exception):
 
 
 def default_output() -> Path:
-    """``~/Documents/ChatGPT Archive`` (or the platform's equivalent)."""
-    return Path(platformdirs.user_documents_dir()) / "ChatGPT Archive"
+    """``~/Documents/Chat Archive`` (or the platform's equivalent)."""
+    return Path(platformdirs.user_documents_dir()) / "Chat Archive"
 
 
 def config_path() -> Path:

@@ -34,6 +34,10 @@ from convoviz.model import (
     TextBlock,
     strip_citations,
 )
+from convoviz.values import as_dict as _dict
+from convoviz.values import as_str as _str
+from convoviz.values import as_time as _time
+from convoviz.values import kind_for
 
 if TYPE_CHECKING:
     from convoviz.diagnostics import Diagnostics
@@ -414,21 +418,6 @@ def _metadata_attachments(meta: dict[str, Any], blocks: list[Block]) -> list[Blo
     return extra
 
 
-def kind_for(mime: str | None, name: str | None) -> AttachmentKind:
-    """Attachment kind from a MIME type or, failing that, a file name."""
-    probe = (mime or "").lower()
-    lowered = (name or "").lower()
-    if probe.startswith("image/") or lowered.endswith(
-        (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".heic")
-    ):
-        return "image"
-    if probe.startswith("audio/") or lowered.endswith((".wav", ".mp3", ".m4a", ".ogg")):
-        return "audio"
-    if probe.startswith("video/") or lowered.endswith((".mp4", ".mov", ".webm")):
-        return "video"
-    return "file"
-
-
 def _thoughts(content: dict[str, Any]) -> list[Block]:
     thoughts = content.get("thoughts")
     if not isinstance(thoughts, list):
@@ -650,37 +639,3 @@ def _join_parts(parts: Any) -> str:
         elif isinstance(part, dict) and isinstance(part.get("text"), str):
             texts.append(part["text"])
     return "".join(texts)
-
-
-def _str(value: Any) -> str | None:
-    return value if isinstance(value, str) else None
-
-
-def _dict(value: Any) -> dict[str, Any]:
-    return value if isinstance(value, dict) else {}
-
-
-def _time(value: Any) -> datetime | None:
-    """Parse epoch seconds, epoch milliseconds, or ISO-8601 strings."""
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, int | float):
-        seconds = float(value)
-        if seconds > 1e11:  # milliseconds
-            seconds /= 1000
-        if seconds <= 0:
-            return None
-        try:
-            return datetime.fromtimestamp(seconds, UTC)
-        except (OverflowError, OSError, ValueError):
-            return None
-    if isinstance(value, str) and value:
-        try:
-            parsed = datetime.fromisoformat(value)
-        except ValueError:
-            try:
-                return _time(float(value))
-            except ValueError:
-                return None
-        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-    return None

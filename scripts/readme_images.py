@@ -99,7 +99,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="convoviz-readme-") as tmp:
         work = Path(tmp)
         export = demo.build(work / "export.zip")
-        archive = work / "ChatGPT Archive"
+        archive = work / "Chat Archive"
         subprocess.run(
             [
                 sys.executable,

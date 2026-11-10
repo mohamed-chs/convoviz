@@ -13,6 +13,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from convoviz.chatgpt.parse import parse_conversation
+from convoviz.claude.parse import parse_conversation as parse_claude
 from convoviz.diagnostics import Diagnostics
 from convoviz.render import RenderOptions, render_conversation
 from convoviz.stats import compute
@@ -160,6 +161,119 @@ def test_random_conversations_never_crash(raw: dict[str, Any]) -> None:
     for branches in ("all", "active"):
         options = RenderOptions(timezone=UTC, branches=branches)
         render_conversation(conversation, options, lambda _a: "x.png")
+    compute([conversation], UTC)
+
+
+_CLAUDE_TOOLS = st.sampled_from(
+    [
+        "artifacts",
+        "create_file",
+        "str_replace",
+        "Write",
+        "Edit",
+        "Bash",
+        "repl",
+        "present_files",
+        "visualize:show_widget",
+        "memory_user_edits",
+        "GitHub:create_issue",
+        "mcp__x__y",
+        "web_search",
+        "",
+    ]
+)
+_CLAUDE_INPUT = st.fixed_dictionaries(
+    {
+        "command": _maybe(st.sampled_from(["create", "update", "rewrite", "view", "add"])),
+        "id": _maybe(st.sampled_from(["a", "b"])),
+        "type": _maybe(st.sampled_from(["text/markdown", "application/vnd.ant.code", "x"])),
+        "content": _maybe(_TEXTISH),
+        "old_str": _maybe(_TEXTISH),
+        "new_str": _maybe(_TEXTISH),
+        "path": _maybe(st.sampled_from(["/a/x.py", "/a/y.md", ""])),
+        "file_text": _maybe(_TEXTISH),
+        "widget_code": _maybe(_TEXTISH),
+    }
+)
+_CLAUDE_BLOCK = st.one_of(
+    st.fixed_dictionaries(
+        {
+            "type": _maybe(st.sampled_from(["text", "thinking", "voice_note", "x", "image"])),
+            "text": _maybe(_TEXTISH),
+            "thinking": _maybe(_TEXTISH),
+            "summaries": _maybe(st.lists(_JSON, max_size=2)),
+            "citations": _maybe(
+                st.lists(
+                    st.fixed_dictionaries(
+                        {
+                            "end_index": _maybe(st.integers(min_value=-5, max_value=80)),
+                            "details": _maybe(st.fixed_dictionaries({"url": _maybe(_TEXTISH)})),
+                        }
+                    ),
+                    max_size=3,
+                )
+            ),
+        }
+    ),
+    st.fixed_dictionaries(
+        {
+            "type": st.just("tool_use"),
+            "id": _maybe(st.sampled_from(["t1", "t2"])),
+            "name": _maybe(_CLAUDE_TOOLS),
+            "input": _maybe(_CLAUDE_INPUT),
+        }
+    ),
+    st.fixed_dictionaries(
+        {
+            "type": st.just("tool_result"),
+            "tool_use_id": _maybe(st.sampled_from(["t1", "t2"])),
+            "name": _maybe(_CLAUDE_TOOLS),
+            "content": _maybe(st.lists(_JSON, max_size=3)),
+            "is_error": _maybe(st.booleans()),
+        }
+    ),
+    _JSON,
+)
+
+
+@st.composite
+def claude_conversations(draw: st.DrawFn) -> dict[str, Any]:
+    count = draw(st.integers(min_value=0, max_value=6))
+    ids = [f"m{i}" for i in range(count)]
+    messages = [
+        {
+            "uuid": draw(_maybe(st.just(message_id))),
+            "sender": draw(_maybe(st.sampled_from(["human", "assistant"]))),
+            "text": draw(_maybe(_TEXTISH)),
+            "content": draw(_maybe(st.lists(_CLAUDE_BLOCK, max_size=4))),
+            "created_at": draw(_maybe(st.sampled_from(["2026-01-01T00:00:00Z", "bad"]))),
+            "parent_message_uuid": draw(
+                _maybe(st.sampled_from([*ids, "00000000-0000-4000-8000-000000000000", "gone"]))
+            ),
+            "attachments": draw(_maybe(st.lists(_JSON, max_size=2))),
+            "files": draw(_maybe(st.lists(_JSON, max_size=2))),
+        }
+        for message_id in ids
+    ]
+    return {
+        "uuid": "c1",
+        "name": draw(_maybe(_TEXTISH)),
+        "created_at": draw(_JSON),
+        "chat_messages": messages,
+    }
+
+
+@settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(claude_conversations())
+def test_random_claude_conversations_never_crash(raw: dict[str, Any]) -> None:
+    diagnostics = Diagnostics()
+    conversation = parse_claude(raw, diagnostics)
+    assert not diagnostics.errors, diagnostics.errors
+    if conversation is None:
+        return
+    for branches in ("all", "active"):
+        options = RenderOptions(timezone=UTC, branches=branches)
+        render_conversation(conversation, options, lambda _a: "x.png", lambda p: p)
     compute([conversation], UTC)
 
 

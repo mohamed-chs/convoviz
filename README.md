@@ -1,7 +1,7 @@
 <h1 align="center">convoviz</h1>
 
 <p align="center">
-  <strong>Turn your ChatGPT export into Markdown notes and charts.</strong><br>
+  <strong>Turn your ChatGPT or Claude export into Markdown notes and charts.</strong><br>
   Read and search your whole chat history in Obsidian or any Markdown app. Runs on your computer.
 </p>
 
@@ -24,7 +24,7 @@
 
 ## Quick start
 
-**1.** In ChatGPT, open **Settings → Data controls → Export data**, and download the ZIP from the email.
+**1.** In ChatGPT, open **Settings → Data controls → Export data**, and download the ZIP from the email. In Claude, open **Settings → Privacy → Export data**; the email links to several ZIPs: `conversations-000.zip` is the one convoviz needs, and `projects-000.zip` and `memories-000.zip` add your projects and Claude's memory.
 
 **2.** Install convoviz:
 
@@ -44,7 +44,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/moh
 convoviz
 ```
 
-It finds the newest export in Downloads and writes your archive to `Documents/ChatGPT Archive`.
+It finds the newest export in Downloads and writes your archive to `Documents/Chat Archive`.
 
 <details>
 <summary>New to the terminal?</summary>
@@ -117,9 +117,10 @@ what should I not miss?
 
 - One Markdown note per conversation, sorted by year. [See a full example.](https://github.com/mohamed-chs/convoviz/blob/main/docs/example/Planning%20a%20trip%20to%20Kyoto.md)
 - Sources as footnotes, reasoning and tool output folded, edited replies kept.
-- Images, files and Canvas documents saved next to the notes.
+- Images, files, Canvas documents and Claude artifacts saved next to the notes.
+- Claude projects (instructions and knowledge files) and Claude's memory, each on its own page.
 - An index, and a sortable table of every conversation in Obsidian.
-- `insights.html`: charts and word clouds of how you use ChatGPT, offline.
+- `insights.html`: charts and word clouds of how you use ChatGPT and Claude, offline.
 
 <p align="center">
   <picture>
@@ -178,6 +179,14 @@ No. The notes are standard Markdown and open in VS Code, on GitHub, or in any Ma
 <summary><strong>Which exports does it read?</strong></summary>
 
 ChatGPT's 2026 format: the ZIP, an extracted folder, or `conversations.json`, including split and multi-part exports. Business and Enterprise workspaces can't export.
+
+Claude's export from claude.ai: `conversations-000.zip` (or the single ZIP older exports came as), an extracted folder, or `conversations.json`. Add `projects-000.zip` and `memories-000.zip` to get a note per project (instructions and knowledge files) and a page of Claude's memory; other ZIPs are skipped. Exports from both assistants can go into one archive: `convoviz chatgpt.zip conversations-000.zip`.
+</details>
+
+<details>
+<summary><strong>Why are my Claude files missing?</strong></summary>
+
+Claude's export doesn't include files: not the ones you uploaded, and not the ones Claude made for download. Notes name them so you know they existed. Text Claude read from your documents is kept, folded above your prompt, and artifacts and files Claude wrote as text are saved under `artifacts/`.
 </details>
 
 <details>

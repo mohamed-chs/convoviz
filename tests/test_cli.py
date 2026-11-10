@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING
 
 import pytest
-from factory import PNG_1PX, ConversationBuilder, write_export
+from factory import (
+    PNG_1PX,
+    ClaudeBuilder,
+    ConversationBuilder,
+    claude_memory,
+    claude_project,
+    write_claude_export,
+    write_export,
+    write_zip,
+)
 
 from convoviz import cli
 
@@ -49,7 +59,7 @@ def test_finds_export_in_downloads(tmp_path: Path, capsys: pytest.CaptureFixture
     _export(downloads, "abc-2026-11-01.zip")
     assert _run(["-y"]) == 0
     assert "abc-2026-11-01.zip" in capsys.readouterr().out
-    assert (tmp_path / "Documents/ChatGPT Archive/index.md").exists()
+    assert (tmp_path / "Documents/Chat Archive/index.md").exists()
 
 
 def test_output_problems_are_reported_without_traceback(
@@ -83,7 +93,7 @@ def test_interrupt_is_reported(
 
 def test_no_export_found(capsys: pytest.CaptureFixture[str]) -> None:
     assert _run(["-y"]) == 2
-    assert "No ChatGPT export found" in capsys.readouterr().err
+    assert "No export found" in capsys.readouterr().err
 
 
 def test_not_an_export(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -91,7 +101,70 @@ def test_not_an_export(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> No
     write_export(other, [])
     (tmp_path / "folder").mkdir()
     assert _run([str(tmp_path / "folder"), "-o", str(tmp_path / "o")]) == 2
-    assert "doesn't contain ChatGPT conversations" in capsys.readouterr().err
+    assert "doesn't contain conversations" in capsys.readouterr().err
+
+
+def _claude_export(folder: Path) -> Path:
+    b = ClaudeBuilder(name="Soup")
+    b.human("How do I make soup?")
+    b.assistant("Boil water.")
+    return write_claude_export(folder / "conversations-000.zip", [b.build()])
+
+
+def test_claude_and_chatgpt_into_one_archive(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "out"
+    claude = _claude_export(tmp_path)
+    projects = write_zip(tmp_path / "projects-000.zip", {"projects/b0b0.json": claude_project()})
+    memories = write_zip(tmp_path / "memories-000.zip", {"memories/acc.json": claude_memory()})
+    metadata = write_zip(tmp_path / "light_metadata-000.zip", {"users.json": [{"uuid": "x"}]})
+    exports = [_export(tmp_path), claude, projects, memories, metadata]
+    assert _run([*map(str, exports), "-o", str(out), "-y", "--timezone", "UTC"]) == 0
+    printed = capsys.readouterr().out
+    assert "2 conversations" in printed
+    assert "Skipped (nothing convoviz reads): light_metadata-000.zip" in printed
+    note = (out / "conversations/2026/2026-01-01 Soup.md").read_text()
+    assert "## Claude" in note
+    assert "ChatGPT and Claude" in (out / "insights.html").read_text()
+    assert (out / "projects/Garden.md").exists()
+    assert (out / "projects/Garden/soil.pdf.md").read_text() == "Loam is best.\n"
+    assert "Raised beds." in (out / "Claude memory.md").read_text()
+    index = (out / "index.md").read_text()
+    assert "[Project: Garden](projects/Garden.md)" in index
+    assert "[Claude memory](Claude%20memory.md)" in index
+
+
+def test_finds_claude_companions_in_downloads(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+    conversations = _claude_export(downloads)
+    write_zip(downloads / "projects-000.zip", {"projects/b0b0.json": claude_project()})
+    stale = write_zip(downloads / "memories-000.zip", {"memories/acc.json": claude_memory()})
+    old = conversations.stat().st_mtime - 3 * 86400  # from an earlier export
+    os.utime(stale, (old, old))
+    assert _run(["-y"]) == 0
+    assert "conversations-000.zip, projects-000.zip (" in capsys.readouterr().out
+    archive = tmp_path / "Documents/Chat Archive"
+    assert (archive / "projects/Garden.md").exists()
+    assert not (archive / "Claude memory.md").exists()
+
+
+def test_claude_companion_zip_alone(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    projects = write_zip(tmp_path / "projects-000.zip", {"projects/b0b0.json": claude_project()})
+    assert _run([str(projects), "-o", str(tmp_path / "o")]) == 2
+    assert "Pass conversations-000.zip along with it" in capsys.readouterr().err
+
+
+def test_claude_manifest_explains_what_to_download(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manifest = tmp_path / "manifest-acc-1767225600-abc-2026-01-01.json"
+    manifest.write_text(json.dumps({"version": "1.0", "data_files": []}))
+    assert _run([str(manifest), "-o", str(tmp_path / "o")]) == 2
+    assert "Download conversations-000.zip" in capsys.readouterr().err
 
 
 def test_bad_timezone(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -102,7 +175,7 @@ def test_bad_timezone(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> Non
 def test_inspect_json(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert _run(["inspect", str(_export(tmp_path)), "--json"]) == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["shape"]["conversations"] == 1
+    assert report["chatgpt"]["shape"]["conversations"] == 1
     assert "Hello" not in json.dumps(report)
 
 
@@ -115,13 +188,13 @@ def test_inspect_finds_export_in_downloads(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert _run(["inspect"]) == 2
-    assert "No ChatGPT export found" in capsys.readouterr().err
+    assert "No export found" in capsys.readouterr().err
     downloads = tmp_path / "Downloads"
     downloads.mkdir()
     _export(downloads, "abc-2026-11-01.zip")
     assert _run(["inspect", "--json"]) == 0
     captured = capsys.readouterr()
-    assert json.loads(captured.out)["shape"]["conversations"] == 1
+    assert json.loads(captured.out)["chatgpt"]["shape"]["conversations"] == 1
     assert "abc-2026-11-01.zip" in captured.err
 
 

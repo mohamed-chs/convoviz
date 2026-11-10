@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 import time
 from contextlib import nullcontext
@@ -25,8 +26,8 @@ from rich.progress import (
 )
 from rich.prompt import Confirm
 
+from convoviz import claude
 from convoviz.census import census
-from convoviz.chatgpt import load_export
 from convoviz.config import (
     ConfigError,
     config_path,
@@ -36,10 +37,12 @@ from convoviz.config import (
 )
 from convoviz.diagnostics import Diagnostics
 from convoviz.insights import render_insights
+from convoviz.load import load_export
 from convoviz.render import Branches  # noqa: TC001 - cyclopts reads annotations at runtime
 from convoviz.source import (
     ExportSource,
     SourceError,
+    claude_companions,
     find_recent_exports,
     group_inputs,
     make_workdir,
@@ -69,7 +72,7 @@ def _version() -> str:
 
 app = App(
     name="convoviz",
-    help="Turn your ChatGPT data export into a Markdown archive and usage charts.",
+    help="Turn your ChatGPT or Claude data export into a Markdown archive and usage charts.",
     version=_version,
     help_format="markdown",
 )
@@ -101,7 +104,7 @@ def convert(
     ] = 0,
     config: Path | None = None,
 ) -> int:
-    """Convert a ChatGPT export into Markdown notes.
+    """Convert a ChatGPT or Claude export into Markdown notes.
 
     Re-running with a newer export updates the archive in place: only changed
     conversations are rewritten, and notes you edited are kept.
@@ -109,11 +112,13 @@ def convert(
     Parameters
     ----------
     exports
-        The export: the ZIP from OpenAI's email (or several part ZIPs), an extracted
-        folder, or conversations.json. Default: the newest export in Downloads.
+        The export: the ZIP(s) from the export email (ChatGPT may split it into
+        parts; Claude's conversations-000.zip is the one that matters), an
+        extracted folder, or conversations.json. Several exports, even from both
+        assistants, go into one archive. Default: the newest export in Downloads.
     output
         Folder to write the archive to. Default: from the config file, else
-        ~/Documents/ChatGPT Archive.
+        ~/Documents/Chat Archive.
     layout
         "year" puts notes in one folder per year; "flat" in a single folder.
     branches
@@ -261,6 +266,41 @@ def _open_sources(paths: list[Path], workdir: Path) -> list[ExportSource]:
     return [ExportSource.open_many(g, workdir / f"export-{i}") for i, g in enumerate(groups)]
 
 
+def _usable_sources(sources: list[ExportSource], *, quiet: bool) -> list[ExportSource]:
+    """The sources convoviz can read; the rest are skipped, or explained if all are.
+
+    Claude's export comes as one ZIP per category, so passing all of them is
+    normal: projects and memory are read, the others skipped. Conversations
+    are required.
+    """
+    if not any(s.has_conversation_data() for s in sources):
+        raise UsageError(_no_conversations(sources[0]))
+    usable = [s for s in sources if s.has_conversation_data() or claude.has_extras(s)]
+    skipped = [s for s in sources if s not in usable]
+    if skipped and not quiet:
+        names = escape(", ".join(Path(s.label).name for s in skipped))
+        console.print(f"[dim]Skipped (nothing convoviz reads): {names}[/]")
+    return usable
+
+
+def _no_conversations(source: ExportSource) -> str:
+    if any(_CLAUDE_MANIFEST_RE.match(m.name) for m in source):
+        return (
+            f"{source.label} is the list of files in a Claude export, not the export itself.\n"
+            "Download conversations-000.zip from the links in the export email or on the\n"
+            "download page (they expire after 24 hours) and pass that ZIP instead."
+        )
+    if claude.has_extras(source):
+        return (
+            f"{source.label} holds Claude projects or memory but no conversations.\n"
+            "Pass conversations-000.zip along with it."
+        )
+    return f"{source.label} doesn't contain conversations (no conversations.json)."
+
+
+_CLAUDE_MANIFEST_RE = re.compile(r"(?i)^manifest-.+\.json$")
+
+
 def _mtime(path: Path) -> float:
     try:
         return path.stat().st_mtime
@@ -277,19 +317,20 @@ def _resolve_inputs(
     found = find_recent_exports(downloads)
     if not found:
         raise UsageError(
-            f"No ChatGPT export found in {downloads}. Pass the path to the export ZIP, e.g.\n"
+            f"No export found in {downloads}. Pass the path to the export ZIP, e.g.\n"
             "  convoviz ~/Downloads/chatgpt-export.zip\n"
-            "Request an export in ChatGPT: Settings → Data controls → Export data."
+            "Request one in ChatGPT: Settings → Data controls → Export data.\n"
+            "In Claude: Settings → Privacy → Export data."
         )
     newest = found[0]
-    paths = with_sibling_parts(newest)
+    paths = with_sibling_parts(newest) + claude_companions(newest)
     if not quiet:
         age = _age(newest)
         names = escape(", ".join(p.name for p in paths))
         out.print(f"Found export: [bold]{names}[/] ({age})")
     if not assume_yes and sys.stdin.isatty() and not Confirm.ask("Use it?", default=True):
         raise UsageError("Cancelled. Pass the export path explicitly.")
-    return [newest]
+    return [newest, *claude_companions(newest)]
 
 
 def _check_output(output: Path) -> None:
@@ -330,12 +371,7 @@ def _run(paths: list[Path], settings: Config, *, force: bool, quiet: bool) -> in
     diagnostics = Diagnostics()
     started = time.monotonic()
     with make_workdir() as workdir:
-        sources = _open_sources(paths, Path(workdir))
-        for source in sources:
-            if not source.has_conversation_data():
-                raise UsageError(
-                    f"{source.label} doesn't contain ChatGPT conversations (no conversations.json)."
-                )
+        sources = _usable_sources(_open_sources(paths, Path(workdir)), quiet=quiet)
         with nullcontext() if quiet else console.status("Reading export…"):
             export = load_export(sources, diagnostics)
         writer = Writer(
@@ -414,6 +450,9 @@ def _summary(
             f"{'was' if report.deleted_skipped == 1 else 'were'} not recreated "
             "(--force brings them back).[/]"
         )
+    if report.removed_files:
+        files = _plural(report.removed_files, "file")
+        say(f"  Removed {files} for renamed documents or projects")
     if report.kept_files:
         names = escape(", ".join(report.kept_files))
         say(

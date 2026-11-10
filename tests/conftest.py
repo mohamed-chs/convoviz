@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 import pytest
 from hypothesis import settings
 
-from convoviz.chatgpt import LoadedExport, load_export
 from convoviz.diagnostics import Diagnostics
+from convoviz.load import LoadedExport, load_export
 from convoviz.render import RenderOptions
 from convoviz.source import ExportSource
 

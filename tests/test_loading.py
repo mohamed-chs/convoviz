@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 
 from factory import PNG_1PX, ConversationBuilder, write_export
 
-from convoviz.chatgpt import load_export
 from convoviz.diagnostics import Diagnostics
+from convoviz.load import load_export
 from convoviz.model import AttachmentBlock
 from convoviz.source import ExportSource
 

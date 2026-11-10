@@ -1,10 +1,11 @@
-"""Build synthetic ChatGPT exports for tests (no real user data, ever)."""
+"""Build synthetic ChatGPT and Claude exports for tests (no real user data, ever)."""
 
 from __future__ import annotations
 
 import json
 import zipfile
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -100,6 +101,156 @@ class ConversationBuilder:
             "default_model_slug": "gpt-5-2",
             **self.extra,
         }
+
+
+CLAUDE_ROOT = "00000000-0000-4000-8000-000000000000"
+
+
+def iso(seconds: float) -> str:
+    """Seconds since the epoch as claude.ai writes timestamps."""
+    return datetime.fromtimestamp(seconds, UTC).isoformat().replace("+00:00", "Z")
+
+
+@dataclass
+class ClaudeBuilder:
+    """Fluent builder for one raw claude.ai conversation (``parent_message_uuid`` links)."""
+
+    name: str = "Test chat"
+    uuid: str = "c1a0de00-0000-4000-8000-000000000001"
+    create_time: float = BASE_TIME
+    messages: list[dict[str, Any]] = field(default_factory=list)
+    extra: dict[str, Any] = field(default_factory=dict)
+    _last: str = CLAUDE_ROOT
+
+    def add(
+        self,
+        sender: str,
+        content: list[dict[str, Any]] | str,
+        *,
+        parent: str | None = None,
+        uuid: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+        files: list[dict[str, Any]] | None = None,
+        time: float | None = None,
+    ) -> str:
+        """Append a message; returns its uuid. ``parent`` defaults to the last message."""
+        uuid = uuid or f"m{len(self.messages) + 1:04d}-0000-4000-8000-000000000000"
+        if isinstance(content, str):
+            content = [{"type": "text", "text": content, "citations": []}]
+        moment = iso(time if time is not None else self.create_time + 60 * len(self.messages))
+        text = "\n\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+        self.messages.append(
+            {
+                "uuid": uuid,
+                "text": text,
+                "content": content,
+                "sender": sender,
+                "created_at": moment,
+                "updated_at": moment,
+                "attachments": attachments or [],
+                "files": files or [],
+                "parent_message_uuid": parent or self._last,
+            }
+        )
+        self._last = uuid
+        return uuid
+
+    def human(self, text: str, **kwargs: Any) -> str:
+        """Add a prompt."""
+        return self.add("human", text, **kwargs)
+
+    def assistant(self, content: list[dict[str, Any]] | str, **kwargs: Any) -> str:
+        """Add a reply: text or a list of content blocks."""
+        return self.add("assistant", content, **kwargs)
+
+    def build(self) -> dict[str, Any]:
+        """The raw conversation dict."""
+        messages = json.loads(json.dumps(self.messages))
+        last = messages[-1]["updated_at"] if messages else iso(self.create_time)
+        return {
+            "uuid": self.uuid,
+            "name": self.name,
+            "summary": "",
+            "created_at": iso(self.create_time),
+            "updated_at": last,
+            "account": {"uuid": "acc00000-0000-4000-8000-000000000000"},
+            "chat_messages": messages,
+            **self.extra,
+        }
+
+
+def tool_use(name: str, data: dict[str, Any], tool_id: str = "toolu_1") -> dict[str, Any]:
+    """A ``tool_use`` content block."""
+    return {"type": "tool_use", "id": tool_id, "name": name, "input": data}
+
+
+def tool_result(
+    name: str, content: list[dict[str, Any]], tool_id: str = "toolu_1", *, error: bool = False
+) -> dict[str, Any]:
+    """A ``tool_result`` content block."""
+    return {
+        "type": "tool_result",
+        "tool_use_id": tool_id,
+        "name": name,
+        "content": content,
+        "is_error": error,
+    }
+
+
+def claude_project(name: str = "Garden", **extra: Any) -> dict[str, Any]:
+    """A project as ``projects/<uuid>.json`` holds it."""
+    return {
+        "uuid": "b0b0b0b0-0000-4000-8000-000000000001",
+        "name": name,
+        "description": "Planning the vegetable beds.",
+        "is_private": True,
+        "is_starter_project": False,
+        "prompt_template": "Answer as a # gardener.",
+        "created_at": iso(BASE_TIME),
+        "updated_at": iso(BASE_TIME + 3600),
+        "creator": {"uuid": "acc00000-0000-4000-8000-000000000000", "full_name": "Someone"},
+        "docs": [
+            {
+                "uuid": "d0c00000-0000-4000-8000-000000000001",
+                "filename": "soil.pdf",
+                "content": "Loam is best.",
+                "created_at": iso(BASE_TIME),
+            }
+        ],
+        **extra,
+    }
+
+
+def claude_memory(**extra: Any) -> dict[str, Any]:
+    """The account's memory, as ``memories/<account>.json`` holds it."""
+    return {
+        "conversations_memory": "**Work context**\n\nGrows tomatoes.",
+        "account_uuid": "acc00000-0000-4000-8000-000000000000",
+        "memory_files": [
+            {
+                "path": "/areas/garden.md",
+                "content": "---\ntitle: garden\n---\n# Garden\nRaised beds.",
+                "updated_at": "2026-01-02T10:00:00.000000+00:00",
+            }
+        ],
+        **extra,
+    }
+
+
+def write_zip(path: Path, members: dict[str, Any]) -> Path:
+    """A ZIP whose members are ``members`` as JSON."""
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, json.dumps(data))
+    return path
+
+
+def write_claude_export(path: Path, conversations: list[Any]) -> Path:
+    """Write ``conversations-000.zip`` as the 2026 per-category export has it."""
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("conversations.json", json.dumps(conversations))
+        archive.writestr("users.json", json.dumps([{"uuid": "acc00000"}]))
+    return path
 
 
 def write_export(

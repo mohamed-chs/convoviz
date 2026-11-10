@@ -6,8 +6,8 @@ where to go next. Keep this describing the present, not the history (that is
 
 ## State (v1.0.1, November 2026)
 
-A ground-up rewrite (branch `overhaul`) for the 2026 export format. The full
-pipeline is in place and tested on synthetic exports: reading (all known
+A ground-up rewrite (branch `overhaul`) for the 2026 export format, with a
+second adapter for Claude exports. The full pipeline is in place and tested on synthetic exports: reading (all known
 packagings), parsing, Markdown rendering, incremental writing, attachments,
 the index/Bases files, insights (charts and word clouds), `inspect`, config
 and CLI. The quality gate (ruff, ty, pytest) is green on Python 3.12 and 3.15,
@@ -64,10 +64,11 @@ first reports from users. The design aims to make them visible
 - **Canvas.** Every edit renders the whole document again (in an open
   `<details>`). For heavily edited documents, showing only the final version
   per turn might read better. The final version on the active branch is also
-  saved under `canvas/` (`render.canvas_files`, named by document title plus
-  the conversation id so names are stable). Files of conversations whose
-  document was renamed aren't cleaned up; titles of Canvas documents don't
-  change in practice.
+  saved under `canvas/` (`render.document_files`, named by document title
+  plus the conversation id so names are stable; Claude's artifacts and files
+  go to `artifacts/` the same way). `state.json` records each generated
+  file's owner (`conversation:<id>`, `project:<id>`), and files an owner no
+  longer produces are removed if unchanged (`Writer._remove_outdated`).
 - **Custom instructions** go to `Custom instructions.md` (one section per
   distinct version, newest first), written by the Writer as a managed file.
   Memory snapshots (`model_editable_context`, reportedly `model_set_context`
@@ -83,9 +84,21 @@ first reports from users. The design aims to make them visible
   changing it.
 - **Changing `--timezone`** can change dates in file names, so notes move.
   That's handled (as moves), but it isn't obvious to users.
-- **Other providers.** `model.py` is provider-neutral. A Claude export adapter
-  (`convoviz/claude/`) would be a self-contained addition. Research notes on
-  other providers' formats are not in the repo yet; ask the maintainer.
+- **Claude.** `convoviz/claude/` reads claude.ai exports. It was built from
+  public evidence only (`claude-export-format.md` lists the sources and how
+  sure each fact is); no real Claude export has been through it. Watch for:
+  - tool names drifting again (`_ALIASES`, `_tool_use`); unknown tools are
+    hidden and counted as `tool_call:<name>`, and `inspect --json` lists
+    `claude.tool_names` (connectors only as `<mcp>`);
+  - `image`/`document` content blocks, whose shape is unknown;
+  - citation offsets (`_word_end` nudges markers to word ends in case they
+    count UTF-16 units);
+  - `md_citations` on artifacts and `citations_grouping_mode`, not used yet.
+  Projects (`projects/<name>.md` plus knowledge docs as text) and memory
+  (`Claude memory.md`) are read from their ZIPs (`claude/extras.py`).
+  Conversations carry no project link, so project notes can't list their
+  conversations. Published artifacts (`frames-000.zip`),
+  `design_chats` and Claude Code cloud routines aren't read.
 
 ## Conventions worth knowing
 
@@ -94,8 +107,8 @@ first reports from users. The design aims to make them visible
   from its path is searched for by its `conversation_id` property (moved →
   `pinned`, not found → `deleted` tombstone). Managed files (`index.md`,
   `Conversations.base`, `insights.html`) have hashes under `files`.
-- `tests/golden/rich.md` is the reference rendering. Any output change shows
-  up there.
+- `tests/golden/rich.md` (ChatGPT) and `tests/golden/claude.md` are the
+  reference renderings. Any output change shows up there.
 - `tests/demo.py` builds a seeded, made-up export of about 1,500
   conversations. It is the source of the README's example note
   (`docs/example/`, checked by `tests/test_demo.py`) and its images

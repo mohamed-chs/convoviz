@@ -5,6 +5,48 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- Claude exports. Pass `conversations-000.zip` from claude.ai's export (or the
+  single ZIP older exports came as) and get the same notes, index and charts:
+  branches, thinking, cited sources, artifacts and files Claude wrote (with
+  their edits replayed, and saved under `artifacts/`), code it ran, connector
+  calls, and the text of documents you attached. Claude's export holds no
+  uploaded or generated files, so notes name those without linking them.
+- ChatGPT and Claude exports can go into one archive. Notes say which
+  assistant they're from (`source` property, new "Assistant" column in
+  `Conversations.base`), and the charts page names both.
+- Claude projects: pass `projects-000.zip` along and each project gets a note
+  under `projects/` with its description and instructions, and its knowledge
+  documents saved next to it as text.
+- Claude memory: pass `memories-000.zip` along for a `Claude memory.md` page
+  with what Claude remembered about you.
+- The export's other ZIPs (account details, feedback, …) can be passed along
+  and are skipped. Passing the export's `manifest-….json` explains which file
+  to download instead. `index.md` links the projects and memory pages.
+- Run with no path, convoviz also picks up the `projects-000.zip` and
+  `memories-000.zip` downloaded within a day of the newest Claude
+  `conversations-000.zip` in Downloads.
+- `convoviz inspect` reports a Claude export's structure too, in its own
+  section.
+
+### Changed
+
+- The assistant's heading and the note's tag follow the assistant ("Claude",
+  `claude`). A config file made by 1.0's `config init` sets them to ChatGPT's
+  for every note: run `convoviz config init --force` to get the new defaults.
+- The default output folder is `~/Documents/Chat Archive`. To keep updating an
+  existing archive, pass `-o "~/Documents/ChatGPT Archive"` or set `output` in
+  the config file.
+- `inspect --json` puts ChatGPT's structure under a `chatgpt` key.
+- When a Canvas document, artifact or project is renamed, the file saved under
+  its old name is removed (unless you changed it).
+- `index.md` is titled "Conversations" instead of naming ChatGPT.
+- The charts page counts artifacts and files written separately from Canvas,
+  and no longer counts connector calls as code run. Replies whose model the
+  export doesn't name (all of Claude's) count under the assistant's name in
+  the models chart instead of being left out.
+
 ## 1.0.2 — 2026-11
 
 ### Fixed

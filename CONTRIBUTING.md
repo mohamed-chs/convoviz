@@ -35,15 +35,19 @@ macOS.
 ## Ground rules
 
 - **Never commit real export data**, including "anonymized" excerpts. Build
-  what you need with `tests/factory.py` (`ConversationBuilder`, `write_export`).
+  what you need with `tests/factory.py` (`ConversationBuilder` and
+  `write_export` for ChatGPT, `ClaudeBuilder` and `write_claude_export` for
+  Claude).
 - A new export quirk means a test reproducing it (from a synthetic export), a
-  change in `chatgpt/`, and a line in `docs/dev/export-format.md` with a source.
+  change in `chatgpt/` or `claude/`, and a line with a source in
+  `docs/dev/export-format.md` or `docs/dev/claude-export-format.md`.
 - `tests/test_fuzz.py` feeds random export-shaped JSON through parsing,
   rendering and statistics. A parser change deserves a longer hunt:
   `HYPOTHESIS_PROFILE=long uv run pytest tests/test_fuzz.py tests/test_markdown.py`.
-- Changes to the Markdown output show up in `tests/golden/rich.md`. Regenerate
-  it with `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py` and check the
-  diff reads well.
+- Changes to the Markdown output show up in `tests/golden/rich.md` and
+  `tests/golden/claude.md`. Regenerate them with
+  `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py tests/test_claude.py` and
+  check the diff reads well.
 - The README's example note is checked against the renderer in
   `tests/test_demo.py` (regenerate it with `UPDATE_GOLDEN=1` too). When
   `insights.html` changes, refresh the README images with

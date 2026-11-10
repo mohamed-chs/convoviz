@@ -5,17 +5,21 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import pytest
-from factory import BASE_TIME, PNG_1PX, ConversationBuilder, write_export
+from factory import BASE_TIME, PNG_1PX, ClaudeBuilder, ConversationBuilder, tool_use, write_export
 
 from convoviz.assets import sniff_extension
-from convoviz.chatgpt import LoadedExport
+from convoviz.chatgpt.files import AssetIndex
+from convoviz.claude import parse_conversation as parse_claude
 from convoviz.diagnostics import Diagnostics
-from convoviz.writer import Writer
+from convoviz.load import LoadedExport
+from convoviz.model import Project, ProjectDoc
+from convoviz.render import RenderOptions
+from convoviz.writer import Writer, WriteReport
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
-    from convoviz.render import RenderOptions
     from convoviz.writer import Layout
 
 
@@ -84,7 +88,7 @@ def test_first_run_layout(run) -> None:
     note = (out / "conversations/2026/2026-01-01 Chat.md").read_text()
     assert "![](../../attachments/image_0000img1.png)" in note
     state = json.loads((out / ".convoviz/state.json").read_text())
-    assert state["version"] == 1
+    assert state["version"] == 2
     assert list(state["conversations"]) == ["00000000-0000-4000-8000-000000000001"]
 
 
@@ -391,3 +395,50 @@ def test_canvas_documents_are_saved_as_files(run) -> None:
     report, _ = run([b.build()])
     assert saved.read_text() == "y = 2  # mine\n"  # the user's edit is kept
     assert report.kept_files == ["canvas/Tool v1 (1a2b3c4d).py"]
+
+
+def _write_claude(
+    out: Path, conversations: list[dict], projects: Sequence[Project] = ()
+) -> WriteReport:
+    parsed = [c for raw in conversations if (c := parse_claude(raw, Diagnostics()))]
+    export = LoadedExport(parsed, AssetIndex(), list(projects))
+    return Writer(out, RenderOptions(), Diagnostics()).write(export)
+
+
+def _artifact_chat(title: str) -> dict:
+    b = ClaudeBuilder(name="Poems")
+    b.human("poem")
+    data = {"command": "create", "id": "p", "type": "text/markdown", "title": title, "content": "x"}
+    b.assistant([tool_use("artifacts", data)])
+    return b.build()
+
+
+def test_outdated_generated_files_are_removed(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    project = Project("b0b0b0b0-1", "Garden", docs=(ProjectDoc("soil.txt", "loam"),))
+    _write_claude(out, [_artifact_chat("Old title")], [project])
+    old = out / "artifacts/Old title (c1a0de00).md"
+    assert old.exists()
+    assert (out / "projects/Garden/soil.txt").exists()
+
+    renamed = replace(project, name="Vegetables")
+    report = _write_claude(out, [_artifact_chat("New title")], [renamed])
+    assert not old.exists()
+    assert (out / "artifacts/New title (c1a0de00).md").exists()
+    assert not (out / "projects/Garden.md").exists()
+    assert not (out / "projects/Garden").exists()  # the emptied folder too
+    assert (out / "projects/Vegetables/soil.txt").read_text() == "loam\n"
+    assert report.removed_files == 3
+
+
+def test_outdated_files_are_kept_when_edited_or_not_in_this_export(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    _write_claude(out, [_artifact_chat("Old title")])
+    old = out / "artifacts/Old title (c1a0de00).md"
+    report = _write_claude(out, [])  # a partial export: the conversation is missing
+    assert old.exists()
+    assert report.removed_files == 0
+    old.write_text("mine\n")
+    report = _write_claude(out, [_artifact_chat("New title")])
+    assert old.read_text() == "mine\n"
+    assert report.removed_files == 0

@@ -5,10 +5,13 @@ Layout::
     <output>/
       conversations/2026/2026-03-14 Title.md
       attachments/…
-      canvas/Title (1a2b3c4d).py   the final version of each Canvas document
+      canvas/Title (1a2b3c4d).py   the final version of each ChatGPT Canvas document
+      artifacts/Title (1a2b3c4d).html   … and of each Claude artifact or file
       index.md
       Conversations.base
       Custom instructions.md   (when the export recorded any)
+      projects/Name.md, projects/Name/doc.md   Claude projects and their knowledge
+      Claude memory.md   (when the export has it)
       insights.html
       .convoviz/state.json
 
@@ -25,9 +28,12 @@ of what convoviz last wrote there. On a re-run with a newer export:
   run, a deleted ``.convoviz`` folder) is adopted rather than duplicated;
 * conversations missing from the new export are left alone (exports can be partial).
 
-``index.md``, ``Conversations.base``, ``Custom instructions.md``, ``insights.html``
-and the Canvas files are tracked the same way: a copy the user changed, or a file convoviz didn't
-create, is left alone.
+``index.md``, ``Conversations.base``, ``insights.html`` and the other generated
+pages and files are tracked the same way: a copy the user changed, or a file
+convoviz didn't create, is left alone. Files generated for a conversation or
+project (documents, project pages) remember it as their owner; when the owner
+no longer produces one (a renamed document), the old file is removed unless the
+user changed it.
 """
 
 from __future__ import annotations
@@ -49,25 +55,32 @@ from convoviz.assets import AssetStore
 from convoviz.fsnames import safe_stem
 from convoviz.markdown import escape_inline
 from convoviz.render import (
+    ARTIFACTS_DIR,
     CANVAS_DIR,
     INSTRUCTIONS_PAGE,
-    canvas_files,
+    MEMORY_PAGE,
+    PROJECTS_DIR,
+    document_files,
     local_time,
+    project_doc_paths,
+    project_paths,
     render_conversation,
     render_instructions,
+    render_memory,
+    render_project,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from convoviz.chatgpt import LoadedExport
     from convoviz.diagnostics import Diagnostics
+    from convoviz.load import LoadedExport
     from convoviz.model import Conversation
     from convoviz.render import RenderOptions
 
 Layout = Literal["year", "flat"]
 STATE_DIR = ".convoviz"
-STATE_VERSION = 1
+STATE_VERSION = 2
 CONVERSATIONS_DIR = "conversations"
 
 
@@ -126,6 +139,8 @@ class State:
 
     entries: dict[str, Entry] = field(default_factory=dict)
     files: dict[str, str] = field(default_factory=dict)  # managed file -> sha256 written
+    # Managed file -> what it was generated from ("conversation:<id>", "project:<id>").
+    owners: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def load(cls, output: Path, diagnostics: Diagnostics) -> State:
@@ -145,8 +160,13 @@ class State:
             if entry is not None:
                 state.entries[str(conv_id)] = entry
         files = data.get("files") if isinstance(data, dict) else None
-        if isinstance(files, dict):
-            state.files = {str(k): v for k, v in files.items() if isinstance(v, str)}
+        for rel, value in (files or {}).items() if isinstance(files, dict) else ():
+            if isinstance(value, str):  # version 1: the digest alone
+                state.files[str(rel)] = value
+            elif isinstance(value, dict) and isinstance(value.get("sha256"), str):
+                state.files[str(rel)] = value["sha256"]
+                if isinstance(owner := value.get("owner"), str) and owner:
+                    state.owners[str(rel)] = owner
         return state
 
     def save(self, output: Path) -> None:
@@ -154,7 +174,10 @@ class State:
         data = {
             "version": STATE_VERSION,
             "conversations": {k: v.to_json() for k, v in sorted(self.entries.items())},
-            "files": dict(sorted(self.files.items())),
+            "files": {
+                rel: {"sha256": digest, **({"owner": o} if (o := self.owners.get(rel)) else {})}
+                for rel, digest in sorted(self.files.items())
+            },
         }
         _atomic_write(
             output / STATE_DIR / "state.json",
@@ -176,6 +199,8 @@ class WriteReport:
     edited_current: int = 0
     deleted_skipped: int = 0
     kept_files: list[str] = field(default_factory=list)
+    # Generated files no longer produced (a renamed document or project), removed.
+    removed_files: int = 0
     attachments_copied: int = 0
     attachments_missing: int = 0
     total_notes: int = 0
@@ -231,6 +256,8 @@ class Writer:
         self.state = State.load(output, diagnostics)
         self.report = WriteReport()
         self._adopted: dict[str, str] = {}
+        self._produced: set[str] = set()  # managed files generated this run
+        self._owners_done: set[str] = set()  # owners whose files were all generated
 
     def write(
         self,
@@ -252,13 +279,10 @@ class Writer:
                     self.diagnostics.error(f"could not write {conversation.title!r}: {exc}")
                 if progress is not None:
                     progress(conversation)
-            self._write_managed("index.md", self._index())
+            pages = self._write_account_pages(export)
+            self._remove_outdated()
+            self._write_managed("index.md", self._index(pages))
             self._write_managed("Conversations.base", _BASE.encode())
-            instructions = render_instructions(
-                export.conversations, self._link_from_root, self.options.timezone
-            )
-            if instructions is not None:
-                self._write_managed(INSTRUCTIONS_PAGE, instructions.encode())
             for rel, data in (extra_files or {}).items():
                 self._write_managed(rel, data)
         finally:
@@ -333,8 +357,10 @@ class Writer:
             lambda a: assets.link_from(target, a),
             lambda path: Path(os.path.relpath(self.output / path, target.parent)).as_posix(),
         )
-        for path, document in canvas_files(conversation).items():
-            self._write_managed(path, (document.content.rstrip("\n") + "\n").encode())
+        owner = f"conversation:{conversation.id}"
+        for path, document in document_files(conversation).items():
+            self._write_managed(path, (document.content.rstrip("\n") + "\n").encode(), owner)
+        self._owners_done.add(owner)
         data = note.text.encode()
         digest = _sha(data)
         if previous is not None and not previous.deleted:
@@ -397,10 +423,15 @@ class Writer:
 
     # ------------------------------------------------------------------ other files
 
-    def _write_managed(self, rel: str, data: bytes) -> None:
+    def _write_managed(self, rel: str, data: bytes, owner: str = "") -> None:
         """Write a generated file unless the user changed it or it isn't convoviz's."""
         path = self.output / rel
         digest = _sha(data)
+        self._produced.add(rel)
+        if owner:
+            self.state.owners[rel] = owner
+        else:
+            self.state.owners.pop(rel, None)
         if path.exists():
             current = _sha(path.read_bytes())
             if current != digest and current != self.state.files.get(rel) and not self.force:
@@ -412,20 +443,65 @@ class Writer:
         _atomic_write(path, data)
         self.state.files[rel] = digest
 
+    def _write_account_pages(self, export: LoadedExport) -> list[tuple[str, str]]:
+        """Custom instructions, projects and memory; returns (label, path) for the index."""
+        pages: list[tuple[str, str]] = []
+        tz = self.options.timezone
+        instructions = render_instructions(export.conversations, self._link_from_root, tz)
+        if instructions is not None:
+            self._write_managed(INSTRUCTIONS_PAGE, instructions.encode())
+            pages.append(("Custom instructions", INSTRUCTIONS_PAGE))
+        for path, project in project_paths(export.projects).items():
+            owner = f"project:{project.id}"
+            docs = project_doc_paths(path, project)
+            for doc, doc_path in zip(project.docs, docs, strict=True):
+                self._write_managed(doc_path, (doc.content.rstrip("\n") + "\n").encode(), owner)
+            page = render_project(project, docs, path, self.options).encode()
+            self._write_managed(path, page, owner)
+            self._owners_done.add(owner)
+            pages.append((f"Project: {project.name}", path))
+        if export.memory is not None:
+            self._write_managed(MEMORY_PAGE, render_memory(export.memory, tz).encode())
+            pages.append((MEMORY_PAGE.removesuffix(".md"), MEMORY_PAGE))
+        return pages
+
+    def _remove_outdated(self) -> None:
+        """Remove files generated for a conversation or project that no longer produces them.
+
+        Only owners handled in this run are considered, so a conversation missing
+        from a partial export keeps its files. A file the user changed is kept
+        (and forgotten); folders left empty are removed.
+        """
+        for rel, owner in list(self.state.owners.items()):
+            if owner not in self._owners_done or rel in self._produced:
+                continue
+            path = self.output / rel
+            recorded = self.state.files.pop(rel, None)
+            del self.state.owners[rel]
+            try:
+                if not path.is_file() or _sha(path.read_bytes()) != recorded:
+                    continue
+                path.unlink()
+            except OSError as exc:
+                self.diagnostics.warn(f"could not remove the outdated {rel}: {exc}")
+                continue
+            self.report.removed_files += 1
+            _remove_empty_parents(path, self.output)
+
     def _link_from_root(self, conversation: Conversation) -> str | None:
         entry = self.state.entries.get(conversation.id)
         if entry is None or entry.deleted:
             return None
         return quote(entry.path, safe="/._-~")
 
-    def _index(self) -> bytes:
+    def _index(self, pages: list[tuple[str, str]]) -> bytes:
         entries = sorted(
             (e for e in self.state.entries.values() if not e.deleted),
             key=lambda e: e.created,
             reverse=True,
         )
         lines = [
-            "# ChatGPT conversations",
+            "# Conversations",
             "",
             (
                 f"{len(entries):,} conversation{'' if len(entries) == 1 else 's'}. "
@@ -433,6 +509,11 @@ class Writer:
                 "for a sortable table, or `insights.html` for charts."
             ),
         ]
+        if pages:
+            links = (
+                f"[{escape_inline(label)}]({quote(path, safe='/._-~')})" for label, path in pages
+            )
+            lines += ["", f"Also here: {', '.join(links)}."]
         year_month = ""
         for entry in entries:
             when = _parse_iso(entry.created)
@@ -451,11 +532,15 @@ class Writer:
 _BASE = """\
 filters:
   and:
-    - note.source == "chatgpt"
     - file.ext == "md"
+    - or:
+        - note.source == "chatgpt"
+        - note.source == "claude"
 properties:
   file.name:
     displayName: Conversation
+  note.source:
+    displayName: Assistant
   note.created:
     displayName: Created
   note.updated:
@@ -473,6 +558,7 @@ views:
       - updated
       - messages
       - models
+      - source
     sort:
       - property: created
         direction: DESC
@@ -499,12 +585,16 @@ def _find_notes(output: Path) -> dict[str, list[str]]:
     """Every Markdown note under ``output`` that carries a ``conversation_id`` property.
 
     Hidden folders (``.convoviz``, ``.obsidian``, Obsidian's ``.trash``),
-    ``attachments`` and ``canvas`` are skipped. Only the first few KB of each file are read.
+    ``attachments``, ``canvas``, ``artifacts`` and ``projects`` are skipped. Only
+    the first few KB of each file are read.
     """
     found: dict[str, list[str]] = defaultdict(list)
     for folder, subfolders, names in os.walk(output):
         subfolders[:] = sorted(
-            d for d in subfolders if not d.startswith(".") and d not in ("attachments", CANVAS_DIR)
+            d
+            for d in subfolders
+            if not d.startswith(".")
+            and d not in ("attachments", CANVAS_DIR, ARTIFACTS_DIR, PROJECTS_DIR)
         )
         for name in sorted(names):
             if not name.endswith(".md"):
