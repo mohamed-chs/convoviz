@@ -1,8 +1,9 @@
 """Provider-neutral conversation model.
 
-Provider adapters (``convoviz.chatgpt``) translate raw export JSON into these types;
-renderers and analytics only ever see these. The model is deliberately small: it
-keeps what a reader of the conversation would care about, already interpreted.
+Provider adapters (``convoviz.chatgpt``, ``convoviz.claude``) translate raw export
+JSON into these types; renderers and analytics only ever see these. The model is
+deliberately small: it keeps what a reader of the conversation would care about,
+already interpreted.
 """
 
 from __future__ import annotations
@@ -14,6 +15,9 @@ if TYPE_CHECKING:
     from datetime import datetime
 
 Role = Literal["user", "assistant", "tool", "system"]
+
+# How each provider's assistant is called, by ``Conversation.provider``.
+ASSISTANT_NAMES = {"chatgpt": "ChatGPT", "claude": "Claude"}
 AttachmentKind = Literal["image", "audio", "video", "file"]
 
 # Inline source references inside TextBlock.text are encoded as
@@ -67,6 +71,7 @@ class CodeBlock:
     code: str
     language: str = ""
     tool: str | None = None
+    title: str | None = None  # what the fold says instead of "Code (language)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +80,7 @@ class OutputBlock:
 
     text: str
     tool: str | None = None
+    title: str | None = None  # what the fold says instead of "Output"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,14 +101,28 @@ class AttachmentBlock:
 
 
 @dataclass(frozen=True, slots=True)
+class FileTextBlock:
+    """An attached file kept only as the text the provider extracted from it."""
+
+    text: str
+    name: str | None = None
+    file_type: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class DocumentBlock:
-    """A Canvas document (created or updated), with its full current content."""
+    """A document the assistant wrote or edited, with its full current content.
+
+    ``doc_type`` is ``"document"`` (Markdown prose) or ``"code/<language>"``.
+    ``kind`` is what the provider calls it: a ChatGPT "Canvas", a Claude
+    "Artifact" or "File", or an inline draft ("Email", "Document", ...).
+    """
 
     title: str
     content: str
     doc_type: str | None = None
     version: int = 1
-    kind: str = "Canvas"  # or what an inline draft is: "Email", "Document", ...
+    kind: str = "Canvas"
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +139,7 @@ Block = (
     | OutputBlock
     | QuoteBlock
     | AttachmentBlock
+    | FileTextBlock
     | DocumentBlock
     | NoticeBlock
 )

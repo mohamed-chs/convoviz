@@ -253,7 +253,7 @@ class ExportSource:
         return self._members.get(path)
 
     def has_conversation_data(self) -> bool:
-        """Whether this looks like it holds ChatGPT conversations."""
+        """Whether this looks like it holds conversations (ChatGPT or Claude)."""
         return any(_is_conversation_file(m.path) for m in self)
 
     @property
@@ -323,7 +323,7 @@ def group_inputs(paths: Iterable[Path]) -> list[list[Path]]:
 
 
 def looks_like_export(path: Path) -> bool:
-    """Cheap check: a ZIP whose listing contains ChatGPT conversation data."""
+    """Cheap check: a ZIP whose listing contains conversation data."""
     try:
         with zipfile.ZipFile(path) as archive:
             names = archive.namelist()
@@ -337,7 +337,7 @@ def looks_like_export(path: Path) -> bool:
 
 
 def find_recent_exports(folder: Path, limit: int = 30) -> list[Path]:
-    """ChatGPT export ZIPs in ``folder``, newest first (checks the ``limit`` newest ZIPs)."""
+    """Export ZIPs in ``folder``, newest first (checks the ``limit`` newest ZIPs)."""
     try:
         zips = [p for p in folder.iterdir() if p.suffix.lower() == ".zip" and p.is_file()]
     except OSError:

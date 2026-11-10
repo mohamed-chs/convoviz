@@ -34,17 +34,19 @@ ignored_words = []
 
 [markdown]
 user_label = "You"
-assistant_label = "ChatGPT"
+# Heading of the assistant's turns. Default: its name, "ChatGPT" or "Claude".
+# assistant_label = "AI"
 # Show the time of each turn next to its heading.
 timestamps = true
 # "all": edited/regenerated alternatives are kept, folded at the point they diverge.
-# "active": only the branch you last saw in ChatGPT.
+# "active": only the branch you last saw (for Claude: the most recent one).
 branches = "all"
 # Include the model's reasoning summaries (folded).
 reasoning = true
 # Include code the assistant ran, its output, and quoted web pages (folded).
 tool_calls = true
-tags = ["chatgpt"]
+# Tags on every note. Default: where it comes from, "chatgpt" or "claude".
+# tags = ["ai-chat"]
 # IANA time zone for dates, e.g. "Europe/Paris". Empty: this computer's time zone.
 timezone = ""
 """
@@ -157,6 +159,10 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
             if not isinstance(markdown[key], str) or not markdown[key].strip():
                 raise fail(f"markdown.{key} must be a non-empty string")
             options[key] = markdown[key].strip()
+    # Config files written by convoviz 1.0 spell out its defaults, which were
+    # ChatGPT's. They mean "the default", which now follows the provider.
+    if options.get("assistant_label") == "ChatGPT":
+        del options["assistant_label"]
     for key in ("timestamps", "reasoning", "tool_calls"):
         if key in markdown:
             options[key] = _bool(markdown[key], f"markdown.{key}", fail)
@@ -169,6 +175,8 @@ def _from_dict(data: dict[str, Any], path: Path) -> Config:
         if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
             raise fail("markdown.tags must be a list of strings")
         options["tags"] = tuple(t.strip() for t in tags if t.strip())
+        if options["tags"] == ("chatgpt",):
+            del options["tags"]
     if markdown.get("timezone"):
         options["timezone"] = parse_timezone(markdown["timezone"], fail)
     unknown_md = set(markdown) - _MARKDOWN_KEYS

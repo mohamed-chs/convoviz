@@ -17,6 +17,7 @@ from convoviz.model import (
     AttachmentBlock,
     CodeBlock,
     DocumentBlock,
+    FileTextBlock,
     ReasoningBlock,
     TextBlock,
     strip_citations,
@@ -37,6 +38,7 @@ FEATURES = (
     ("image_gen", "Images generated"),
     ("upload", "Files or images uploaded"),
     ("canvas", "Canvas"),
+    ("artifacts", "Artifacts and files written"),
     ("voice", "Voice"),
 )
 
@@ -48,6 +50,7 @@ class Stats:
     """Aggregates for the insights report."""
 
     conversations: int = 0
+    providers: Counter[str] = field(default_factory=Counter)  # conversations per provider
     prompts: int = 0
     replies: int = 0
     first: date | None = None
@@ -108,6 +111,7 @@ def compute(
         if not messages:
             continue
         stats.conversations += 1
+        stats.providers[conversation.provider] += 1
         length = count_messages(thread)
         for low, high in LENGTH_BUCKETS:
             if length >= low and (high is None or length <= high):
@@ -158,10 +162,12 @@ def _features(message: Message) -> set[str]:
                 found.add("reasoning")
             case TextBlock() if block.sources and message.role != "user":
                 found.add("web")
-            case CodeBlock():
+            case CodeBlock() if block.language != "json":  # JSON is a tool call, not code
                 found.add("code")
             case DocumentBlock():
-                found.add("canvas")
+                found.add("canvas" if block.kind == "Canvas" else "artifacts")
+            case FileTextBlock():
+                found.add("upload")
             case AttachmentBlock():
                 kind = block.attachment.kind
                 if kind == "audio":

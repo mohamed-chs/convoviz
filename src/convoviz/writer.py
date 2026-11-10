@@ -5,7 +5,8 @@ Layout::
     <output>/
       conversations/2026/2026-03-14 Title.md
       attachments/…
-      canvas/Title (1a2b3c4d).py   the final version of each Canvas document
+      canvas/Title (1a2b3c4d).py   the final version of each ChatGPT Canvas document
+      artifacts/Title (1a2b3c4d).html   … and of each Claude artifact or file
       index.md
       Conversations.base
       Custom instructions.md   (when the export recorded any)
@@ -49,9 +50,10 @@ from convoviz.assets import AssetStore
 from convoviz.fsnames import safe_stem
 from convoviz.markdown import escape_inline
 from convoviz.render import (
+    ARTIFACTS_DIR,
     CANVAS_DIR,
     INSTRUCTIONS_PAGE,
-    canvas_files,
+    document_files,
     local_time,
     render_conversation,
     render_instructions,
@@ -60,8 +62,8 @@ from convoviz.render import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from convoviz.chatgpt import LoadedExport
     from convoviz.diagnostics import Diagnostics
+    from convoviz.load import LoadedExport
     from convoviz.model import Conversation
     from convoviz.render import RenderOptions
 
@@ -333,7 +335,7 @@ class Writer:
             lambda a: assets.link_from(target, a),
             lambda path: Path(os.path.relpath(self.output / path, target.parent)).as_posix(),
         )
-        for path, document in canvas_files(conversation).items():
+        for path, document in document_files(conversation).items():
             self._write_managed(path, (document.content.rstrip("\n") + "\n").encode())
         data = note.text.encode()
         digest = _sha(data)
@@ -425,7 +427,7 @@ class Writer:
             reverse=True,
         )
         lines = [
-            "# ChatGPT conversations",
+            "# Conversations",
             "",
             (
                 f"{len(entries):,} conversation{'' if len(entries) == 1 else 's'}. "
@@ -451,11 +453,15 @@ class Writer:
 _BASE = """\
 filters:
   and:
-    - note.source == "chatgpt"
     - file.ext == "md"
+    - or:
+        - note.source == "chatgpt"
+        - note.source == "claude"
 properties:
   file.name:
     displayName: Conversation
+  note.source:
+    displayName: Assistant
   note.created:
     displayName: Created
   note.updated:
@@ -473,6 +479,7 @@ views:
       - updated
       - messages
       - models
+      - source
     sort:
       - property: created
         direction: DESC
@@ -499,12 +506,15 @@ def _find_notes(output: Path) -> dict[str, list[str]]:
     """Every Markdown note under ``output`` that carries a ``conversation_id`` property.
 
     Hidden folders (``.convoviz``, ``.obsidian``, Obsidian's ``.trash``),
-    ``attachments`` and ``canvas`` are skipped. Only the first few KB of each file are read.
+    ``attachments``, ``canvas`` and ``artifacts`` are skipped. Only the first few KB of
+    each file are read.
     """
     found: dict[str, list[str]] = defaultdict(list)
     for folder, subfolders, names in os.walk(output):
         subfolders[:] = sorted(
-            d for d in subfolders if not d.startswith(".") and d not in ("attachments", CANVAS_DIR)
+            d
+            for d in subfolders
+            if not d.startswith(".") and d not in ("attachments", CANVAS_DIR, ARTIFACTS_DIR)
         )
         for name in sorted(names):
             if not name.endswith(".md"):

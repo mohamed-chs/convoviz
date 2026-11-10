@@ -11,6 +11,7 @@ import html
 import re
 from collections import Counter
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import quote
 
@@ -29,11 +30,13 @@ from convoviz.markdown import (
     math_to_dollars,
 )
 from convoviz.model import (
+    ASSISTANT_NAMES,
     CITE_CLOSE,
     CITE_OPEN,
     AttachmentBlock,
     CodeBlock,
     DocumentBlock,
+    FileTextBlock,
     Message,
     NoticeBlock,
     OutputBlock,
@@ -58,13 +61,21 @@ class RenderOptions:
     """User-facing knobs for the Markdown output."""
 
     user_label: str = "You"
-    assistant_label: str = "ChatGPT"
+    assistant_label: str | None = None  # None: the assistant's name ("ChatGPT", "Claude")
     timestamps: bool = True
     branches: Branches = "all"
     reasoning: bool = True
     tool_calls: bool = True
-    tags: tuple[str, ...] = ("chatgpt",)
+    tags: tuple[str, ...] | None = None  # None: the provider ("chatgpt", "claude")
     timezone: tzinfo | None = None  # None = the system's local time zone
+
+    def assistant_for(self, conversation: Conversation) -> str:
+        """The heading of the assistant's turns in ``conversation``."""
+        return self.assistant_label or ASSISTANT_NAMES.get(conversation.provider, "Assistant")
+
+    def tags_for(self, conversation: Conversation) -> tuple[str, ...]:
+        """The tags of ``conversation``'s note."""
+        return self.tags if self.tags is not None else (conversation.provider,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,9 +99,9 @@ def render_conversation(
     """
     thread = linearize(conversation, include_forks=options.branches == "all")
     canvases = (
-        {block: link(path) for path, block in canvas_files(conversation).items()} if link else {}
+        {block: link(path) for path, block in document_files(conversation).items()} if link else {}
     )
-    renderer = _Renderer(options, resolve, canvases)
+    renderer = _Renderer(options, options.assistant_for(conversation), resolve, canvases)
     body = renderer.thread(thread, nested=False)
     parts = [
         frontmatter(conversation, thread, options),
@@ -171,9 +182,9 @@ def frontmatter(conversation: Conversation, thread: Thread, options: RenderOptio
         lines.append("starred: true")
     if conversation.archived:
         lines.append("archived: true")
-    if options.tags:
+    if tags := options.tags_for(conversation):
         lines.append("tags:")
-        lines.extend(f"  - {_yaml(tag)}" for tag in options.tags)
+        lines.extend(f"  - {_yaml(tag)}" for tag in tags)
     lines.append("---")
     return "\n".join(lines)
 
@@ -240,10 +251,12 @@ class _Renderer:
     def __init__(
         self,
         options: RenderOptions,
+        assistant: str,
         resolve: Callable[[Attachment], str | None],
         canvases: dict[DocumentBlock, str] | None = None,
     ) -> None:
         self.options = options
+        self.assistant = assistant
         self.resolve = resolve
         self.canvases = canvases or {}
         self.footnotes: list[Source] = []
@@ -295,7 +308,7 @@ class _Renderer:
         if not body.strip():
             return ""
         first = messages[0]
-        label = self.options.user_label if first.role == "user" else self.options.assistant_label
+        label = self.options.user_label if first.role == "user" else self.assistant
         stamp = ""
         when = next((m.time for m in messages if m.time), None)
         if self.options.timestamps and when is not None:
@@ -321,18 +334,20 @@ class _Renderer:
             case CodeBlock():
                 if not self.options.tool_calls or not block.code.strip():
                     return ""
-                summary = "Code" + (f" ({block.language})" if block.language else "")
+                summary = block.title or "Code" + (f" ({block.language})" if block.language else "")
                 return _details(summary, _fenced(block.code, block.language))
             case OutputBlock():
                 if not self.options.tool_calls or not block.text.strip():
                     return ""
-                return _details("Output", _fenced(block.text))
+                return _details(block.title or "Output", _fenced(block.text))
             case QuoteBlock():
                 if not self.options.tool_calls or not block.text.strip():
                     return ""
                 return self.quote(block)
             case AttachmentBlock():
                 return self.attachment(block)
+            case FileTextBlock():
+                return self.file_text(block)
             case DocumentBlock():
                 return self.document(block)
             case NoticeBlock():
@@ -403,6 +418,15 @@ class _Renderer:
             return f"![{label}]({_link_target(target)})"
         return f"[📎 {escape_inline(name)}]({_link_target(target)})"
 
+    def file_text(self, block: FileTextBlock) -> str:
+        """An attached file shown as its extracted text, folded and verbatim."""
+        if not block.text.strip():
+            return ""
+        name = block.name or "Pasted text"
+        suffix = PurePosixPath(block.name or "").suffix.lower()
+        language = _FENCE_LANGUAGES.get(suffix, "")
+        return _details(f"📎 {name}", _fenced(block.text, language))
+
     def files(self, attachments: list[Attachment]) -> str:
         """Files linked to the conversation outside its messages."""
         if not attachments:
@@ -424,9 +448,46 @@ class _Renderer:
         return _details(f"🗎 {label}{version}", body, open_=True)
 
 
+# Code-fence languages of attached files whose text is shown.
+_FENCE_LANGUAGES = {
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".jsx": "jsx",
+    ".json": "json",
+    ".html": "html",
+    ".css": "css",
+    ".md": "markdown",
+    ".sh": "bash",
+    ".sql": "sql",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".csv": "csv",
+    ".xml": "xml",
+    ".java": "java",
+    ".go": "go",
+    ".rs": "rust",
+    ".rb": "ruby",
+    ".php": "php",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".cs": "csharp",
+    ".tex": "latex",
+}
+
+
 # --------------------------------------------------------------------------- pages
 
 CANVAS_DIR = "canvas"
+ARTIFACTS_DIR = "artifacts"
+# Where the final version of each kind of document is saved.
+_DOCUMENT_DIRS = {
+    "Canvas": CANVAS_DIR,
+    "Artifact": ARTIFACTS_DIR,
+    "File": ARTIFACTS_DIR,
+    "Widget": ARTIFACTS_DIR,
+}
 _CANVAS_EXTENSIONS = {
     "document": ".md",
     "document/markdown": ".md",
@@ -454,25 +515,36 @@ _CANVAS_EXTENSIONS = {
     "code/r": ".r",
     "code/yaml": ".yaml",
     "code/latex": ".tex",
+    "code/tsx": ".tsx",
+    "code/svg": ".svg",
+    "code/mermaid": ".mmd",
+    "code/csv": ".csv",
+    "code/xml": ".xml",
+    "code/text": ".txt",
 }
 
 
-def canvas_files(conversation: Conversation) -> dict[str, DocumentBlock]:
-    """The final version of each Canvas document on the active branch, by file path.
+def document_files(conversation: Conversation) -> dict[str, DocumentBlock]:
+    """The final version of each document on the active branch, by file path.
 
-    Paths are relative to the archive root and stable across runs: the
-    document's title plus the conversation id, so they don't collide.
+    ChatGPT Canvas documents go to ``canvas/``, Claude artifacts and the files
+    Claude wrote to ``artifacts/``. Paths are relative to the archive root and
+    stable across runs: the document's title plus the conversation id, so they
+    don't collide.
     """
-    latest: dict[str, DocumentBlock] = {}
+    latest: dict[tuple[str, str], DocumentBlock] = {}
     for message in linearize(conversation, include_forks=False).messages():
         for block in message.blocks:
-            if isinstance(block, DocumentBlock) and block.kind == "Canvas":
-                latest[block.title] = block
+            if isinstance(block, DocumentBlock) and block.kind in _DOCUMENT_DIRS:
+                latest[_DOCUMENT_DIRS[block.kind], block.title] = block
     suffix = conversation.id.replace("-", "")[:8]
     files: dict[str, DocumentBlock] = {}
-    for block in latest.values():
+    for (folder, title), block in latest.items():
         ext = _CANVAS_EXTENSIONS.get(block.doc_type or "document", ".txt")
-        files[f"{CANVAS_DIR}/{safe_stem(block.title)} ({suffix}){ext}"] = block
+        stem = safe_stem(PurePosixPath(title).stem if block.kind == "File" else title)
+        if block.kind == "File":
+            ext = PurePosixPath(title).suffix or ext
+        files[f"{folder}/{stem} ({suffix}){ext}"] = block
     return files
 
 

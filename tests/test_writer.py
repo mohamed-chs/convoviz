@@ -8,8 +8,8 @@ import pytest
 from factory import BASE_TIME, PNG_1PX, ConversationBuilder, write_export
 
 from convoviz.assets import sniff_extension
-from convoviz.chatgpt import LoadedExport
 from convoviz.diagnostics import Diagnostics
+from convoviz.load import LoadedExport
 from convoviz.writer import Writer
 
 if TYPE_CHECKING:

@@ -31,6 +31,17 @@ def test_default_config_file_matches_defaults(tmp_path: Path) -> None:
     assert "{output}" in DEFAULT_CONFIG
 
 
+def test_1_0_defaults_now_follow_the_provider(tmp_path: Path) -> None:
+    # convoviz 1.0's config template wrote ChatGPT's label and tag explicitly.
+    path = tmp_path / "c.toml"
+    path.write_text('[markdown]\nassistant_label = "ChatGPT"\ntags = ["chatgpt"]\n')
+    render = load_config(path).render
+    assert (render.assistant_label, render.tags) == (None, None)
+    path.write_text('[markdown]\nassistant_label = "GPT"\ntags = ["ai"]\n')
+    render = load_config(path).render
+    assert (render.assistant_label, render.tags) == ("GPT", ("ai",))
+
+
 def test_values_are_read(tmp_path: Path) -> None:
     path = tmp_path / "c.toml"
     path.write_text(
