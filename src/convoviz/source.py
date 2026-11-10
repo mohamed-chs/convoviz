@@ -211,7 +211,10 @@ class ExportSource:
     def open_many(cls, paths: list[Path], workdir: Path) -> ExportSource:
         """Open several inputs that together form a single export (e.g. part ZIPs)."""
         sources = [cls.open(p, workdir / f"in{i}") for i, p in enumerate(paths)]
-        members = [m for s in sources for m in s]
+        if len(sources) == 1:
+            return sources[0]
+        # Full paths again, so a folder shared by every part is still recognized.
+        members = [replace(m, path=s.root_prefix + m.path) for s in sources for m in s]
         return cls(members, [label for s in sources for label in s.labels])
 
     def unnest(self, workdir: Path, depth: int = 0) -> ExportSource:
@@ -255,6 +258,11 @@ class ExportSource:
     def has_conversation_data(self) -> bool:
         """Whether this looks like it holds conversations (ChatGPT or Claude)."""
         return any(_is_conversation_file(m.path) for m in self)
+
+    @property
+    def root_prefix(self) -> str:
+        """The folder every member sat in (``"projects/"``), removed from their paths."""
+        return self._root_prefix
 
     @property
     def label(self) -> str:
@@ -310,6 +318,38 @@ def with_sibling_parts(path: Path) -> list[Path]:
         if other and other.group("prefix") == prefix and candidate.is_file():
             parts.append((int(other.group("number")), candidate))
     return [p for _, p in sorted(parts)] or [path]
+
+
+_CLAUDE_CONVERSATIONS_RE = re.compile(r"(?i)^conversations-\d+(?: \(\d+\))?\.zip$")
+_CLAUDE_COMPANION_RE = re.compile(r"(?i)^(projects|memories)-\d+(?: \(\d+\))?\.zip$")
+# Claude's download links expire after a day, so the ZIPs of one export arrive within one.
+_COMPANION_WINDOW = 24 * 3600
+
+
+def claude_companions(path: Path) -> list[Path]:
+    """The projects and memories ZIPs downloaded with Claude's ``conversations-000.zip``.
+
+    Their names are the same for every export, so only the newest of each,
+    downloaded within a day of ``path``, counts.
+    """
+    if not _CLAUDE_CONVERSATIONS_RE.match(path.name):
+        return []
+    try:
+        anchor = path.stat().st_mtime
+        candidates = [
+            (p.stat().st_mtime, p)
+            for p in path.parent.iterdir()
+            if _CLAUDE_COMPANION_RE.match(p.name) and p.is_file()
+        ]
+    except OSError:
+        return []
+    newest: dict[str, tuple[float, Path]] = {}
+    for mtime, candidate in candidates:
+        match = _CLAUDE_COMPANION_RE.match(candidate.name)
+        category = match.group(1).lower() if match else ""
+        if abs(mtime - anchor) <= _COMPANION_WINDOW and mtime > newest.get(category, (0.0,))[0]:
+            newest[category] = (mtime, candidate)
+    return [p for _, p in sorted(newest.values(), key=lambda entry: entry[1].name)]
 
 
 def group_inputs(paths: Iterable[Path]) -> list[list[Path]]:

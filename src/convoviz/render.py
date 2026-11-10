@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from datetime import datetime, tzinfo
 
-    from convoviz.model import Attachment, Block, Conversation
+    from convoviz.model import Attachment, Block, Conversation, Memory, Project
 
 Branches = Literal["all", "active"]
 
@@ -75,7 +75,11 @@ class RenderOptions:
 
     def tags_for(self, conversation: Conversation) -> tuple[str, ...]:
         """The tags of ``conversation``'s note."""
-        return self.tags if self.tags is not None else (conversation.provider,)
+        return self.provider_tags(conversation.provider)
+
+    def provider_tags(self, provider: str) -> tuple[str, ...]:
+        """The tags of notes from ``provider`` (conversations, projects)."""
+        return self.tags if self.tags is not None else (provider,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -601,3 +605,109 @@ def render_instructions(
         title = escape_inline(last.title)
         lines.append(f"Last used in [{title}]({target})." if target else f"Last used in {title}.")
     return "\n".join(lines) + "\n"
+
+
+# --------------------------------------------------------------------------- projects, memory
+
+PROJECTS_DIR = "projects"
+MEMORY_PAGE = "Claude memory.md"
+# Knowledge documents are saved as the text Claude extracted, so a PDF's text
+# goes to "report.pdf.md" rather than a broken "report.pdf".
+_TEXT_SUFFIXES = frozenset(
+    {*_FENCE_LANGUAGES, ".txt", ".markdown", ".tsv", ".toml", ".ini", ".rst", ".log", ".svg"}
+)
+
+
+def project_paths(projects: list[Project]) -> dict[str, Project]:
+    """``projects/<name>.md`` for each project (plus the id when names clash)."""
+    stems = Counter(safe_stem(p.name).casefold() for p in projects)
+    paths: dict[str, Project] = {}
+    for project in projects:
+        stem = safe_stem(project.name)
+        if stems[stem.casefold()] > 1:
+            stem = f"{stem} ({project.id.replace('-', '')[:8]})"
+        paths[f"{PROJECTS_DIR}/{stem}.md"] = project
+    return paths
+
+
+def project_doc_paths(note_path: str, project: Project) -> list[str]:
+    """Where each knowledge document of ``project`` goes: a folder next to its note."""
+    folder = note_path.removesuffix(".md")
+    used: Counter[str] = Counter()
+    paths: list[str] = []
+    for doc in project.docs:
+        name = PurePosixPath(doc.name)
+        suffix = name.suffix.lower()
+        stem = safe_stem(name.stem if suffix in _TEXT_SUFFIXES else name.name)
+        ext = suffix if suffix in _TEXT_SUFFIXES else ".md"
+        candidate = f"{stem}{ext}"
+        used[candidate.casefold()] += 1
+        if used[candidate.casefold()] > 1:
+            candidate = f"{stem} ({used[candidate.casefold()]}){ext}"
+        paths.append(f"{folder}/{candidate}")
+    return paths
+
+
+def render_project(
+    project: Project, doc_paths: list[str], note_path: str, options: RenderOptions
+) -> str:
+    """A project's note: its description, instructions and knowledge documents."""
+    tz = options.timezone
+    lines = ["---", f"title: {_yaml(project.name)}"]
+    if project.created:
+        lines.append(f"created: {_iso(project.created, tz)}")
+    if project.updated:
+        lines.append(f"updated: {_iso(project.updated, tz)}")
+    lines.append(f"project_id: {_yaml(project.id)}")
+    if project.url:
+        lines.append(f"url: {_yaml(project.url)}")
+    if tags := options.provider_tags(project.provider):
+        lines.append("tags:")
+        lines.extend(f"  - {_yaml(tag)}" for tag in tags)
+    lines += ["---", "", f"# {escape_inline(project.name)}"]
+    if project.description:
+        lines += ["", _prose(project.description)]
+    if project.instructions:
+        lines += ["", "## Instructions", "", _prose(project.instructions)]
+    if project.docs:
+        lines += ["", "## Knowledge", ""]
+        base = PurePosixPath(note_path).parent
+        for doc, path in zip(project.docs, doc_paths, strict=True):
+            target = _link_target(str(PurePosixPath(path).relative_to(base)))
+            added = f" · added {local_time(doc.created, tz):%Y-%m-%d}" if doc.created else ""
+            lines.append(f"- [{escape_inline(doc.name)}]({target}){added}")
+    name = ASSISTANT_NAMES.get(project.provider, project.provider)
+    lines += [
+        "",
+        (
+            f"*Conversations don't record their project in {name}'s export, so they "
+            "aren't linked from here.*"
+        ),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+_FRONT_MATTER_RE = re.compile(r"\A---\n.*?\n---[ \t]*(?:\n|\Z)", re.DOTALL)
+
+
+def render_memory(memory: Memory, tz: tzinfo | None) -> str:
+    """What the assistant remembered: its summary, then each memory file."""
+    name = ASSISTANT_NAMES.get(memory.provider, memory.provider)
+    lines = [
+        f"# {name} memory",
+        "",
+        f"What {name} remembered about you when the export was made.",
+    ]
+    if memory.summary:
+        lines += ["", "## Summary", "", _prose(memory.summary)]
+    for file in sorted(memory.files, key=lambda f: f.path):
+        lines += ["", f"## {escape_inline(file.path)}", ""]
+        if file.updated:
+            lines += [f"*Updated {local_time(file.updated, tz):%Y-%m-%d}*", ""]
+        lines.append(_prose(_FRONT_MATTER_RE.sub("", file.content.replace("\r\n", "\n"))))
+    return "\n".join(lines) + "\n"
+
+
+def _prose(text: str) -> str:
+    """Markdown the user or the assistant wrote, kept below the page's own headings."""
+    return close_fences(map_prose(text, html_escaped, currency_escaped, _demoted)).strip()

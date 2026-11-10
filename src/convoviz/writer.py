@@ -10,6 +10,8 @@ Layout::
       index.md
       Conversations.base
       Custom instructions.md   (when the export recorded any)
+      projects/Name.md, projects/Name/doc.md   Claude projects and their knowledge
+      Claude memory.md   (when the export has it)
       insights.html
       .convoviz/state.json
 
@@ -26,9 +28,9 @@ of what convoviz last wrote there. On a re-run with a newer export:
   run, a deleted ``.convoviz`` folder) is adopted rather than duplicated;
 * conversations missing from the new export are left alone (exports can be partial).
 
-``index.md``, ``Conversations.base``, ``Custom instructions.md``, ``insights.html``
-and the Canvas files are tracked the same way: a copy the user changed, or a file convoviz didn't
-create, is left alone.
+``index.md``, ``Conversations.base``, ``insights.html`` and the other generated
+pages and files are tracked the same way: a copy the user changed, or a file
+convoviz didn't create, is left alone.
 """
 
 from __future__ import annotations
@@ -53,10 +55,16 @@ from convoviz.render import (
     ARTIFACTS_DIR,
     CANVAS_DIR,
     INSTRUCTIONS_PAGE,
+    MEMORY_PAGE,
+    PROJECTS_DIR,
     document_files,
     local_time,
+    project_doc_paths,
+    project_paths,
     render_conversation,
     render_instructions,
+    render_memory,
+    render_project,
 )
 
 if TYPE_CHECKING:
@@ -254,13 +262,9 @@ class Writer:
                     self.diagnostics.error(f"could not write {conversation.title!r}: {exc}")
                 if progress is not None:
                     progress(conversation)
-            self._write_managed("index.md", self._index())
+            pages = self._write_account_pages(export)
+            self._write_managed("index.md", self._index(pages))
             self._write_managed("Conversations.base", _BASE.encode())
-            instructions = render_instructions(
-                export.conversations, self._link_from_root, self.options.timezone
-            )
-            if instructions is not None:
-                self._write_managed(INSTRUCTIONS_PAGE, instructions.encode())
             for rel, data in (extra_files or {}).items():
                 self._write_managed(rel, data)
         finally:
@@ -414,13 +418,32 @@ class Writer:
         _atomic_write(path, data)
         self.state.files[rel] = digest
 
+    def _write_account_pages(self, export: LoadedExport) -> list[tuple[str, str]]:
+        """Custom instructions, projects and memory; returns (label, path) for the index."""
+        pages: list[tuple[str, str]] = []
+        tz = self.options.timezone
+        instructions = render_instructions(export.conversations, self._link_from_root, tz)
+        if instructions is not None:
+            self._write_managed(INSTRUCTIONS_PAGE, instructions.encode())
+            pages.append(("Custom instructions", INSTRUCTIONS_PAGE))
+        for path, project in project_paths(export.projects).items():
+            docs = project_doc_paths(path, project)
+            for doc, doc_path in zip(project.docs, docs, strict=True):
+                self._write_managed(doc_path, (doc.content.rstrip("\n") + "\n").encode())
+            self._write_managed(path, render_project(project, docs, path, self.options).encode())
+            pages.append((f"Project: {project.name}", path))
+        if export.memory is not None:
+            self._write_managed(MEMORY_PAGE, render_memory(export.memory, tz).encode())
+            pages.append((MEMORY_PAGE.removesuffix(".md"), MEMORY_PAGE))
+        return pages
+
     def _link_from_root(self, conversation: Conversation) -> str | None:
         entry = self.state.entries.get(conversation.id)
         if entry is None or entry.deleted:
             return None
         return quote(entry.path, safe="/._-~")
 
-    def _index(self) -> bytes:
+    def _index(self, pages: list[tuple[str, str]]) -> bytes:
         entries = sorted(
             (e for e in self.state.entries.values() if not e.deleted),
             key=lambda e: e.created,
@@ -435,6 +458,11 @@ class Writer:
                 "for a sortable table, or `insights.html` for charts."
             ),
         ]
+        if pages:
+            links = (
+                f"[{escape_inline(label)}]({quote(path, safe='/._-~')})" for label, path in pages
+            )
+            lines += ["", f"Also here: {', '.join(links)}."]
         year_month = ""
         for entry in entries:
             when = _parse_iso(entry.created)
@@ -506,15 +534,16 @@ def _find_notes(output: Path) -> dict[str, list[str]]:
     """Every Markdown note under ``output`` that carries a ``conversation_id`` property.
 
     Hidden folders (``.convoviz``, ``.obsidian``, Obsidian's ``.trash``),
-    ``attachments``, ``canvas`` and ``artifacts`` are skipped. Only the first few KB of
-    each file are read.
+    ``attachments``, ``canvas``, ``artifacts`` and ``projects`` are skipped. Only
+    the first few KB of each file are read.
     """
     found: dict[str, list[str]] = defaultdict(list)
     for folder, subfolders, names in os.walk(output):
         subfolders[:] = sorted(
             d
             for d in subfolders
-            if not d.startswith(".") and d not in ("attachments", CANVAS_DIR, ARTIFACTS_DIR)
+            if not d.startswith(".")
+            and d not in ("attachments", CANVAS_DIR, ARTIFACTS_DIR, PROJECTS_DIR)
         )
         for name in sorted(names):
             if not name.endswith(".md"):

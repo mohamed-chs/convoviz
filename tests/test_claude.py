@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import replace
+from datetime import UTC
+from typing import TYPE_CHECKING, Any
 
-from factory import CLAUDE_ROOT, ClaudeBuilder, tool_result, tool_use
+from factory import (
+    CLAUDE_ROOT,
+    ClaudeBuilder,
+    claude_memory,
+    claude_project,
+    tool_result,
+    tool_use,
+    write_zip,
+)
 
+from convoviz.claude import read_memory, read_projects
 from convoviz.claude.parse import parse_conversation
 from convoviz.diagnostics import Diagnostics
 from convoviz.model import (
@@ -22,8 +33,20 @@ from convoviz.model import (
     ReasoningBlock,
     TextBlock,
 )
-from convoviz.render import RenderOptions, document_files, render_conversation
+from convoviz.render import (
+    RenderOptions,
+    document_files,
+    project_doc_paths,
+    project_paths,
+    render_conversation,
+    render_memory,
+    render_project,
+)
+from convoviz.source import ExportSource
 from convoviz.tree import Fork, linearize
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _parse(raw: dict[str, Any], diagnostics: Diagnostics | None = None) -> Conversation:
@@ -371,3 +394,58 @@ def test_render_uses_claude_labels_and_shows_files() -> None:
     assert "Bot" in text
     assert '  - "ai"' in text
     assert '  - "claude"' not in text
+
+
+def _source(tmp_path: Path, members: dict[str, Any]) -> ExportSource:
+    return ExportSource.open(write_zip(tmp_path / "x.zip", members), tmp_path / "work")
+
+
+def test_projects_in_both_layouts(tmp_path: Path) -> None:
+    starter = claude_project("How to use Claude", uuid="s", is_starter_project=True)
+    legacy = {"projects.json": [claude_project(), starter], "conversations.json": []}
+    diagnostics = Diagnostics()
+    (project,) = read_projects(_source(tmp_path, legacy), diagnostics)
+    assert diagnostics.counters["claude_starter_projects_skipped"] == 1
+    assert project.name == "Garden"
+    assert project.instructions == "Answer as a # gardener."
+    assert project.docs[0].name == "soil.pdf"
+    assert project.url == f"https://claude.ai/project/{project.id}"
+    split = {"projects/a.json": claude_project(), "projects/b.json": claude_project(uuid="2")}
+    assert len(read_projects(_source(tmp_path, split), Diagnostics())) == 2
+
+
+def test_memory_in_both_layouts(tmp_path: Path) -> None:
+    legacy = {"memories.json": [claude_memory(memory_files=None)], "conversations.json": []}
+    memory = read_memory(_source(tmp_path, legacy), Diagnostics())
+    assert memory is not None
+    assert memory.summary.endswith("Grows tomatoes.")
+    assert memory.files == ()
+    current = read_memory(_source(tmp_path, {"memories/acc.json": claude_memory()}), Diagnostics())
+    assert current is not None
+    assert current.files[0].path == "/areas/garden.md"
+    empty = {"memories/acc.json": {"conversations_memory": "", "account_uuid": "x"}}
+    assert read_memory(_source(tmp_path, empty), Diagnostics()) is None
+
+
+def test_project_pages(tmp_path: Path) -> None:
+    source = _source(tmp_path, {"projects/a.json": claude_project()})
+    (project,) = read_projects(source, Diagnostics())
+    twin = replace(project, id="ffffffff-0000")
+    paths = project_paths([project, twin])
+    assert set(paths) == {"projects/Garden (b0b0b0b0).md", "projects/Garden (ffffffff).md"}
+    docs = project_doc_paths("projects/Garden.md", replace(project, docs=project.docs * 2))
+    assert docs == ["projects/Garden/soil.pdf.md", "projects/Garden/soil.pdf (2).md"]
+    text = render_project(project, docs[:1], "projects/Garden.md", RenderOptions())
+    assert 'project_id: "b0b0b0b0-0000-4000-8000-000000000001"' in text
+    assert '  - "claude"' in text
+    assert "## Instructions\n\nAnswer as a # gardener." in text
+    assert "- [soil.pdf](Garden/soil.pdf.md) · added 2026-01-01" in text
+
+
+def test_memory_page(tmp_path: Path) -> None:
+    memory = read_memory(_source(tmp_path, {"memories/acc.json": claude_memory()}), Diagnostics())
+    assert memory is not None
+    text = render_memory(memory, UTC)
+    assert text.startswith("# Claude memory\n")
+    assert "## /areas/garden.md\n\n*Updated 2026-01-02*\n\n### Garden\nRaised beds." in text
+    assert "title: garden" not in text

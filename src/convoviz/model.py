@@ -197,6 +197,48 @@ class Conversation:
     extra: dict[str, object] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectDoc:
+    """A document added to a project's knowledge, as text."""
+
+    name: str
+    content: str
+    created: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Project:
+    """A workspace with its own instructions and documents (Claude's projects)."""
+
+    id: str
+    name: str
+    description: str = ""
+    instructions: str = ""
+    created: datetime | None = None
+    updated: datetime | None = None
+    docs: tuple[ProjectDoc, ...] = ()
+    url: str | None = None
+    provider: str = "claude"
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryFile:
+    """One file of an assistant's memory store."""
+
+    path: str
+    content: str
+    updated: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Memory:
+    """What an assistant remembered about the user when the export was made."""
+
+    summary: str = ""
+    files: tuple[MemoryFile, ...] = ()
+    provider: str = "claude"
+
+
 def strip_citations(text: str) -> str:
     """Remove encoded citation markers from text."""
     if CITE_OPEN not in text:

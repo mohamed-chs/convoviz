@@ -87,7 +87,9 @@ def conversation_files(source: ExportSource, diagnostics: Diagnostics) -> list[M
     candidates = [m for m in source if CONVERSATION_FILE_RE.match(m.name)]
     if not candidates:
         # A bare JSON file (e.g. a single conversation saved by a browser tool).
-        candidates = [m for m in source if m.name.endswith(".json") and "/" not in m.path]
+        # Full paths: the one JSON file of a Claude ``projects-000.zip`` is in a folder.
+        root = source.root_prefix
+        candidates = [m for m in source if m.name.endswith(".json") and "/" not in root + m.path]
         if len(candidates) != 1:
             return []
         return candidates

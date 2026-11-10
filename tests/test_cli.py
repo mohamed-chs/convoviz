@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING
 
 import pytest
-from factory import PNG_1PX, ClaudeBuilder, ConversationBuilder, write_claude_export, write_export
+from factory import (
+    PNG_1PX,
+    ClaudeBuilder,
+    ConversationBuilder,
+    claude_memory,
+    claude_project,
+    write_claude_export,
+    write_export,
+    write_zip,
+)
 
 from convoviz import cli
 
@@ -106,16 +116,46 @@ def test_claude_and_chatgpt_into_one_archive(
 ) -> None:
     out = tmp_path / "out"
     claude = _claude_export(tmp_path)
-    memories = tmp_path / "memories-000.zip"
-    memories.write_bytes(b"PK\x05\x06" + b"\x00" * 18)  # an empty ZIP: no conversations
-    args = [str(_export(tmp_path)), str(claude), str(memories), "-o", str(out), "-y"]
-    assert _run([*args, "--timezone", "UTC"]) == 0
+    projects = write_zip(tmp_path / "projects-000.zip", {"projects/b0b0.json": claude_project()})
+    memories = write_zip(tmp_path / "memories-000.zip", {"memories/acc.json": claude_memory()})
+    metadata = write_zip(tmp_path / "light_metadata-000.zip", {"users.json": [{"uuid": "x"}]})
+    exports = [_export(tmp_path), claude, projects, memories, metadata]
+    assert _run([*map(str, exports), "-o", str(out), "-y", "--timezone", "UTC"]) == 0
     printed = capsys.readouterr().out
     assert "2 conversations" in printed
-    assert "Skipped (no conversations): memories-000.zip" in printed
+    assert "Skipped (nothing convoviz reads): light_metadata-000.zip" in printed
     note = (out / "conversations/2026/2026-01-01 Soup.md").read_text()
     assert "## Claude" in note
     assert "ChatGPT and Claude" in (out / "insights.html").read_text()
+    assert (out / "projects/Garden.md").exists()
+    assert (out / "projects/Garden/soil.pdf.md").read_text() == "Loam is best.\n"
+    assert "Raised beds." in (out / "Claude memory.md").read_text()
+    index = (out / "index.md").read_text()
+    assert "[Project: Garden](projects/Garden.md)" in index
+    assert "[Claude memory](Claude%20memory.md)" in index
+
+
+def test_finds_claude_companions_in_downloads(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    downloads = tmp_path / "Downloads"
+    downloads.mkdir()
+    conversations = _claude_export(downloads)
+    write_zip(downloads / "projects-000.zip", {"projects/b0b0.json": claude_project()})
+    stale = write_zip(downloads / "memories-000.zip", {"memories/acc.json": claude_memory()})
+    old = conversations.stat().st_mtime - 3 * 86400  # from an earlier export
+    os.utime(stale, (old, old))
+    assert _run(["-y"]) == 0
+    assert "conversations-000.zip, projects-000.zip (" in capsys.readouterr().out
+    archive = tmp_path / "Documents/ChatGPT Archive"
+    assert (archive / "projects/Garden.md").exists()
+    assert not (archive / "Claude memory.md").exists()
+
+
+def test_claude_companion_zip_alone(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    projects = write_zip(tmp_path / "projects-000.zip", {"projects/b0b0.json": claude_project()})
+    assert _run([str(projects), "-o", str(tmp_path / "o")]) == 2
+    assert "Pass conversations-000.zip along with it" in capsys.readouterr().err
 
 
 def test_claude_manifest_explains_what_to_download(

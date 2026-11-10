@@ -111,6 +111,9 @@ def census(sources: Sequence[ExportSource]) -> dict[str, Any]:
     report["parsed"] = {
         "conversations": len(loaded.conversations),
         "attachments_indexed": len(loaded.assets.by_member),
+        "projects": len(loaded.projects),
+        "project_docs": sum(len(p.docs) for p in loaded.projects),
+        "memory_files": len(loaded.memory.files) if loaded.memory else 0,
         "errors": len(parse_diagnostics.errors),
         "warnings": len(parse_diagnostics.warnings),
         "skipped": len(parse_diagnostics.skipped),

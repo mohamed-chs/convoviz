@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from convoviz import chatgpt, claude
@@ -13,7 +14,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from convoviz.diagnostics import Diagnostics
-    from convoviz.model import Conversation
+    from convoviz.model import Conversation, Memory, Project
     from convoviz.source import ExportSource
 
 _PARSERS = {
@@ -28,6 +29,8 @@ class LoadedExport:
 
     conversations: list[Conversation]
     assets: AssetIndex
+    projects: list[Project] = field(default_factory=list)
+    memory: Memory | None = None  # from the newest export that has one
 
 
 def load_export(sources: Sequence[ExportSource], diagnostics: Diagnostics) -> LoadedExport:
@@ -35,12 +38,19 @@ def load_export(sources: Sequence[ExportSource], diagnostics: Diagnostics) -> Lo
 
     Conversations that appear more than once (across shards, or across several
     exports) are de-duplicated: the most recently updated copy wins, ties go to
-    the copy with more messages. Attachments are looked up in every export,
-    preferring earlier ones.
+    the copy with more messages. Projects are de-duplicated the same way.
+    Attachments are looked up in every export, preferring earlier ones.
     """
     by_id: dict[str, Conversation] = {}
+    projects: dict[str, Project] = {}
+    memory: Memory | None = None
     assets = AssetIndex()
     for source in sources:
+        for project in claude.read_projects(source, diagnostics):
+            known = projects.get(project.id)
+            if known is None or (project.updated or _EPOCH) > (known.updated or _EPOCH):
+                projects[project.id] = project
+        memory = memory or claude.read_memory(source, diagnostics)
         for member, provider, raw in iter_raw_conversations(source, diagnostics):
             try:
                 conversation = _PARSERS[provider](raw, diagnostics)
@@ -69,4 +79,8 @@ def load_export(sources: Sequence[ExportSource], diagnostics: Diagnostics) -> Lo
         )
     chatgpt.attach_library_files(by_id, assets, diagnostics)
     conversations = sorted(by_id.values(), key=lambda c: (c.created, c.id))
-    return LoadedExport(conversations, assets)
+    ordered = sorted(projects.values(), key=lambda p: (p.name.casefold(), p.id))
+    return LoadedExport(conversations, assets, ordered, memory)
+
+
+_EPOCH = datetime.min.replace(tzinfo=UTC)

@@ -26,6 +26,7 @@ from rich.progress import (
 )
 from rich.prompt import Confirm
 
+from convoviz import claude
 from convoviz.census import census
 from convoviz.config import (
     ConfigError,
@@ -41,6 +42,7 @@ from convoviz.render import Branches  # noqa: TC001 - cyclopts reads annotations
 from convoviz.source import (
     ExportSource,
     SourceError,
+    claude_companions,
     find_recent_exports,
     group_inputs,
     make_workdir,
@@ -265,18 +267,19 @@ def _open_sources(paths: list[Path], workdir: Path) -> list[ExportSource]:
 
 
 def _usable_sources(sources: list[ExportSource], *, quiet: bool) -> list[ExportSource]:
-    """The sources holding conversations; the rest are skipped, or explained if all are.
+    """The sources convoviz can read; the rest are skipped, or explained if all are.
 
-    Claude's export comes as one ZIP per category (projects, memories, ...), so
-    passing all of them next to ``conversations-000.zip`` is normal.
+    Claude's export comes as one ZIP per category, so passing all of them is
+    normal: projects and memory are read, the others skipped. Conversations
+    are required.
     """
-    usable = [s for s in sources if s.has_conversation_data()]
+    if not any(s.has_conversation_data() for s in sources):
+        raise UsageError(_no_conversations(sources[0]))
+    usable = [s for s in sources if s.has_conversation_data() or claude.has_extras(s)]
     skipped = [s for s in sources if s not in usable]
-    if not usable:
-        raise UsageError(_no_conversations(skipped[0]))
     if skipped and not quiet:
         names = escape(", ".join(Path(s.label).name for s in skipped))
-        console.print(f"[dim]Skipped (no conversations): {names}[/]")
+        console.print(f"[dim]Skipped (nothing convoviz reads): {names}[/]")
     return usable
 
 
@@ -286,6 +289,11 @@ def _no_conversations(source: ExportSource) -> str:
             f"{source.label} is the list of files in a Claude export, not the export itself.\n"
             "Download conversations-000.zip from the links in the export email or on the\n"
             "download page (they expire after 24 hours) and pass that ZIP instead."
+        )
+    if claude.has_extras(source):
+        return (
+            f"{source.label} holds Claude projects or memory but no conversations.\n"
+            "Pass conversations-000.zip along with it."
         )
     return f"{source.label} doesn't contain conversations (no conversations.json)."
 
@@ -315,14 +323,14 @@ def _resolve_inputs(
             "In Claude: Settings → Privacy → Export data."
         )
     newest = found[0]
-    paths = with_sibling_parts(newest)
+    paths = with_sibling_parts(newest) + claude_companions(newest)
     if not quiet:
         age = _age(newest)
         names = escape(", ".join(p.name for p in paths))
         out.print(f"Found export: [bold]{names}[/] ({age})")
     if not assume_yes and sys.stdin.isatty() and not Confirm.ask("Use it?", default=True):
         raise UsageError("Cancelled. Pass the export path explicitly.")
-    return [newest]
+    return [newest, *claude_companions(newest)]
 
 
 def _check_output(output: Path) -> None:

@@ -197,6 +197,54 @@ def tool_result(
     }
 
 
+def claude_project(name: str = "Garden", **extra: Any) -> dict[str, Any]:
+    """A project as ``projects/<uuid>.json`` holds it."""
+    return {
+        "uuid": "b0b0b0b0-0000-4000-8000-000000000001",
+        "name": name,
+        "description": "Planning the vegetable beds.",
+        "is_private": True,
+        "is_starter_project": False,
+        "prompt_template": "Answer as a # gardener.",
+        "created_at": iso(BASE_TIME),
+        "updated_at": iso(BASE_TIME + 3600),
+        "creator": {"uuid": "acc00000-0000-4000-8000-000000000000", "full_name": "Someone"},
+        "docs": [
+            {
+                "uuid": "d0c00000-0000-4000-8000-000000000001",
+                "filename": "soil.pdf",
+                "content": "Loam is best.",
+                "created_at": iso(BASE_TIME),
+            }
+        ],
+        **extra,
+    }
+
+
+def claude_memory(**extra: Any) -> dict[str, Any]:
+    """The account's memory, as ``memories/<account>.json`` holds it."""
+    return {
+        "conversations_memory": "**Work context**\n\nGrows tomatoes.",
+        "account_uuid": "acc00000-0000-4000-8000-000000000000",
+        "memory_files": [
+            {
+                "path": "/areas/garden.md",
+                "content": "---\ntitle: garden\n---\n# Garden\nRaised beds.",
+                "updated_at": "2026-01-02T10:00:00.000000+00:00",
+            }
+        ],
+        **extra,
+    }
+
+
+def write_zip(path: Path, members: dict[str, Any]) -> Path:
+    """A ZIP whose members are ``members`` as JSON."""
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, json.dumps(data))
+    return path
+
+
 def write_claude_export(path: Path, conversations: list[Any]) -> Path:
     """Write ``conversations-000.zip`` as the 2026 per-category export has it."""
     with zipfile.ZipFile(path, "w") as archive:
