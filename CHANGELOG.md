@@ -5,6 +5,33 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+### Added
+
+- Claude exports. Pass `conversations-000.zip` from claude.ai's export (or the
+  single ZIP older exports came as) and get the same notes, index and charts:
+  branches, thinking, cited sources, artifacts and files Claude wrote (with
+  their edits replayed, and saved under `artifacts/`), code it ran, connector
+  calls, and the text of documents you attached. Claude's export holds no
+  uploaded or generated files, so notes name those without linking them.
+- ChatGPT and Claude exports can go into one archive. Notes say which
+  assistant they're from (`source` property, new "Assistant" column in
+  `Conversations.base`), and the charts page names both.
+- The other ZIPs of a Claude export (projects, memories, …) can be passed
+  along and are skipped. Passing the export's `manifest-….json` explains which
+  file to download instead.
+- `convoviz inspect` reports a Claude export's structure too, in its own
+  section.
+
+### Changed
+
+- The assistant's heading and the note's tag follow the assistant ("Claude",
+  `claude`). `assistant_label = "ChatGPT"` and `tags = ["chatgpt"]` in a config
+  file now mean the same as leaving them out.
+- `inspect --json` puts ChatGPT's structure under a `chatgpt` key.
+- `index.md` is titled "Conversations" instead of naming ChatGPT.
+- The charts page counts artifacts and files written separately from Canvas,
+  and no longer counts connector calls as code run.
+
 ## 1.0.2 — 2026-11
 
 ### Fixed
