@@ -148,6 +148,8 @@ def escape_html(text: str) -> str:
 
 def fence_for(content: str, char: str = "`") -> str:
     """A code fence long enough to wrap ``content`` safely."""
+    if len(char) != 1:
+        raise ValueError("fence char must be a single character")
     longest = max((len(m) for m in re.findall(re.escape(char) + "{3,}", content)), default=0)
     return char * max(3, longest + 1)
 

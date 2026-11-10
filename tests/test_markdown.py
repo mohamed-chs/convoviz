@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -43,6 +44,16 @@ def test_dangling_fence_is_closed() -> None:
 def test_fence_for_nested_backticks() -> None:
     assert fence_for("no fences") == "```"
     assert fence_for("has ```` inside") == "`````"
+
+
+def test_fence_for_rejects_empty_fence_char() -> None:
+    with pytest.raises(ValueError):
+        fence_for("content", "")
+
+
+def test_fence_for_rejects_multi_char_fence() -> None:
+    with pytest.raises(ValueError):
+        fence_for("content", "``")
 
 
 def test_split_fenced_handles_tildes() -> None:
