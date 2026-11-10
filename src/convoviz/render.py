@@ -24,6 +24,7 @@ from convoviz.markdown import (
     escape_inline,
     fence_for,
     html_escaped,
+    link_url,
     map_prose,
     math_to_dollars,
 )
@@ -213,14 +214,6 @@ def _link_target(target: str) -> str:
     return quote(target, safe="/._-~#:")
 
 
-def _url(url: str) -> str:
-    """A URL that survives as a Markdown link destination."""
-    url = url.strip().replace(" ", "%20").replace("<", "%3C").replace(">", "%3E")
-    if url.count("(") != url.count(")"):
-        url = url.replace("(", "%28").replace(")", "%29")
-    return url
-
-
 def _merge_reasoning(messages: list[Message]) -> list[tuple[Message, Block]]:
     """Join back-to-back reasoning into one panel, as ChatGPT shows it.
 
@@ -382,7 +375,7 @@ class _Renderer:
         lines = []
         for number, source in enumerate(self.footnotes, 1):
             title = escape_inline(source.title or source.url or "Source")
-            text = f"[{title}]({_url(source.url)})" if source.url else title
+            text = f"[{title}]({link_url(source.url)})" if source.url else title
             if source.attribution and source.attribution not in (source.title or ""):
                 text += f" — {escape_inline(source.attribution)}"
             lines.append(f"[^{number}]: {text}")
@@ -392,7 +385,7 @@ class _Renderer:
         quoted = blockquote(block.text.strip())
         title = escape_inline(block.title or block.url or "")
         if block.url:
-            title = f"[{title}]({_url(block.url)})"
+            title = f"[{title}]({link_url(block.url)})"
         return f"{quoted}\n>\n> — {title}" if title else quoted
 
     def attachment(self, block: AttachmentBlock) -> str:

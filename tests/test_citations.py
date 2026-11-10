@@ -232,3 +232,16 @@ def test_marker_regex_has_no_catastrophic_backtracking() -> None:
     started = time.perf_counter()
     assert render_text(text, {}, Diagnostics()).text == "citex"
     assert time.perf_counter() - started < 1.0
+
+
+def test_inline_link_markers_become_links() -> None:
+    def link(label: str, url: str) -> str:
+        return f"{OPEN}url{SEP}{label}{SEP}{url}{CLOSE}"
+
+    text = (
+        f"{link('the [docs]', 'https://ex.com/a b?utm_source=chatgpt.com')}, "
+        f"{link('', 'https://ex.com/c')} and {link('notes', 'not a url')}."
+    )
+    assert _render(text).text == (
+        r"[the \[docs\]](https://ex.com/a%20b), https://ex.com/c and notes."
+    )

@@ -14,6 +14,8 @@ versions follow [SemVer](https://semver.org).
   12s"), instead of one panel per step.
 - Each run of a scheduled task is its own reply, with its own time. Before,
   every run was joined under the first one.
+- Inline links whose URL has spaces or brackets no longer break, and lose
+  ChatGPT's `utm_source` tag like cited links do.
 
 ## 1.0.1 — 2026-11
 
