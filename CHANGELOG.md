@@ -5,6 +5,8 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+## 2.0.0 — 2026-11
+
 ### Added
 
 - Claude exports. Pass `conversations-000.zip` from claude.ai's export (or the
