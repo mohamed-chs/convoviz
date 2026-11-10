@@ -134,6 +134,7 @@ class Message:
     time: datetime | None = None
     model: str | None = None
     author_name: str | None = None
+    scheduled: bool = False  # a run of a scheduled task, a reply of its own
 
     @property
     def text(self) -> str:

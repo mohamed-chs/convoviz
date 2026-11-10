@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import orjson
 
-from convoviz.markdown import split_fenced
+from convoviz.markdown import link_url, split_fenced
 from convoviz.model import CITE_CLOSE, CITE_OPEN, Source, TextBlock
 
 if TYPE_CHECKING:
@@ -410,13 +410,10 @@ def _render_marker(
     if kind == "entity":
         return _entity_name(match.group(0)) or ""
     if kind in ("url", "link") and payload:
-        label = payload[0].strip()
+        label = _link_text(payload[0])
         target = payload[-1].strip() if len(payload) > 1 else ""
-        if target.startswith(("http://", "https://")):
-            return f"[{label}]({target})"
-        if target in lookup and lookup[target].url:
-            return f"[{label}]({lookup[target].url})"
-        return label
+        url = _clean_url(target) or (lookup[target].url if target in lookup else None)
+        return f"[{label}]({link_url(url)})" if url else label
     return ""  # navlist, image_group, genui, map...
 
 

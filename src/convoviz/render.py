@@ -24,6 +24,7 @@ from convoviz.markdown import (
     escape_inline,
     fence_for,
     html_escaped,
+    link_url,
     map_prose,
     math_to_dollars,
 )
@@ -213,30 +214,23 @@ def _link_target(target: str) -> str:
     return quote(target, safe="/._-~#:")
 
 
-def _url(url: str) -> str:
-    """A URL that survives as a Markdown link destination."""
-    url = url.strip().replace(" ", "%20").replace("<", "%3C").replace(">", "%3E")
-    if url.count("(") != url.count(")"):
-        url = url.replace("(", "%28").replace(")", "%29")
-    return url
-
-
 def _merge_reasoning(messages: list[Message]) -> list[tuple[Message, Block]]:
-    """Fold a reasoning recap ("Thought for 12s") into the reasoning it summarizes."""
+    """Join back-to-back reasoning into one panel, as ChatGPT shows it.
+
+    Reasoning steps, the progress notes between them and the recap that ends
+    them ("Thought for 12s", which names the panel) become a single block.
+    """
     pairs: list[tuple[Message, Block]] = []
     for message in messages:
         for block in message.blocks:
             previous = pairs[-1][1] if pairs else None
             if (
                 isinstance(block, ReasoningBlock)
-                and not block.text
                 and isinstance(previous, ReasoningBlock)
-                and previous.text
+                and not previous.title  # a recap closes the panel
             ):
-                pairs[-1] = (
-                    pairs[-1][0],
-                    ReasoningBlock(previous.text, block.title or previous.title),
-                )
+                text = "\n\n".join(t for t in (previous.text, block.text) if t)
+                pairs[-1] = (pairs[-1][0], ReasoningBlock(text, block.title or previous.title))
                 continue
             pairs.append((message, block))
     return pairs
@@ -276,8 +270,8 @@ class _Renderer:
                 continue
             if turn and (item.role == "user") != (turn[0].role == "user"):
                 flush()
-            elif turn and item.role == "user":
-                flush()  # two user messages in a row stay separate turns
+            elif turn and (item.role == "user" or item.scheduled):
+                flush()  # two prompts in a row, or a scheduled run: separate turns
             turn.append(item)
         flush()
         return "\n\n".join(out)
@@ -381,7 +375,7 @@ class _Renderer:
         lines = []
         for number, source in enumerate(self.footnotes, 1):
             title = escape_inline(source.title or source.url or "Source")
-            text = f"[{title}]({_url(source.url)})" if source.url else title
+            text = f"[{title}]({link_url(source.url)})" if source.url else title
             if source.attribution and source.attribution not in (source.title or ""):
                 text += f" — {escape_inline(source.attribution)}"
             lines.append(f"[^{number}]: {text}")
@@ -391,7 +385,7 @@ class _Renderer:
         quoted = blockquote(block.text.strip())
         title = escape_inline(block.title or block.url or "")
         if block.url:
-            title = f"[{title}]({_url(block.url)})"
+            title = f"[{title}]({link_url(block.url)})"
         return f"{quoted}\n>\n> — {title}" if title else quoted
 
     def attachment(self, block: AttachmentBlock) -> str:

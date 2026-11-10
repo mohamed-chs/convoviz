@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-from factory import ConversationBuilder
+from factory import ConversationBuilder, thinking_turn
 
 from convoviz.chatgpt.parse import parse_conversation
 from convoviz.diagnostics import Diagnostics
@@ -98,6 +98,24 @@ def test_thinking_preamble_folds_into_reasoning() -> None:
     messages = _messages(builder)
     assert messages[1].blocks == [ReasoningBlock("Checking the docs first.")]
     assert messages[2].blocks == [TextBlock("a")]
+
+
+def test_preamble_without_its_flag_is_recognized() -> None:
+    builder = ConversationBuilder()
+    thinking_turn(builder)
+    diagnostics = Diagnostics()
+    messages = _messages(builder, diagnostics)
+    assert messages[2].blocks == [ReasoningBlock("Checking the docs.")]
+    assert messages[5].blocks == [TextBlock("The answer.")]
+    assert diagnostics.counters["inferred_preambles"] == 1
+
+
+def test_scheduled_task_runs_are_marked() -> None:
+    builder = ConversationBuilder()
+    builder.user("Every morning, the weather")
+    builder.assistant("Scheduled.")
+    builder.assistant("Sunny.", metadata={"automation_id": "auto_1"})
+    assert [m.scheduled for m in _messages(builder)] == [False, False, True]
 
 
 def test_interactive_reply_uses_markdown_fallback() -> None:

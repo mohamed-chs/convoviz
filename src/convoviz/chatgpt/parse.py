@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from convoviz.diagnostics import Diagnostics
 
 # Content types that are model plumbing, never conversation content.
+_REASONING = frozenset({"thoughts", "reasoning_recap"})
 _HIDDEN_CONTENT = frozenset(
     {
         "tether_browsing_display",
@@ -138,6 +139,8 @@ class _Context:
     # Image prompts by the node of the tool call that sent them.
     prompts: dict[str, str] = field(default_factory=dict)
     parent: str | None = None  # of the message being parsed
+    # Replies followed by a reasoning step: thinking preambles (see _materialize_messages).
+    preambles: set[str] = field(default_factory=set)
 
     def where(self, node_id: str) -> str:
         return f"conversation {self.conv_id}, node {node_id}"
@@ -147,6 +150,14 @@ def _materialize_messages(
     nodes: dict[str, Node], raw_nodes: dict[str, dict[str, Any]], ctx: _Context
 ) -> None:
     """Parse messages in tree order so Canvas edits apply to the right version."""
+    # The 2026 export drops ``is_thinking_preamble_message`` but keeps the
+    # preambles. A reply followed by a reasoning step is one.
+    ctx.preambles = {
+        parent
+        for node_id, raw in raw_nodes.items()
+        if (parent := nodes[node_id].parent) is not None
+        and _str(_dict(raw.get("content")).get("content_type")) in _REASONING
+    }
     children: dict[str | None, list[str]] = {}
     for node in nodes.values():
         parent = node.parent if node.parent in nodes else None
@@ -212,9 +223,14 @@ def _parse_message(
         blocks = _tool_result(name, content, meta, node_id, ctx)
     elif ctype == "thoughts":
         blocks = _thoughts(content)
-    elif role == "assistant" and meta.get("is_thinking_preamble_message") is True:
+    elif role == "assistant" and (
+        meta.get("is_thinking_preamble_message") is True
+        or (ctype == "text" and node_id in ctx.preambles)
+    ):
         # Progress notes written between reasoning steps; ChatGPT shows them
         # inside the thinking panel, not as part of the answer.
+        if meta.get("is_thinking_preamble_message") is not True:
+            ctx.diagnostics.count("inferred_preambles")
         note = _join_parts(content.get("parts")).strip()
         blocks = [ReasoningBlock(note)] if note else []
     elif ctype == "reasoning_recap":
@@ -236,6 +252,8 @@ def _parse_message(
         time=_time(raw.get("create_time")),
         model=_str(meta.get("model_slug")) or _str(meta.get("resolved_model_slug")),
         author_name=name,
+        # Each run of a scheduled task is a reply of its own, with no prompt before it.
+        scheduled=role == "assistant" and bool(_str(meta.get("automation_id"))),
     )
 
 

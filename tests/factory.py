@@ -38,7 +38,7 @@ class ConversationBuilder:
         *,
         parent: str | None = None,
         metadata: dict[str, Any] | None = None,
-        recipient: str = "all",
+        recipient: str | None = "all",
         name: str | None = None,
         node_id: str | None = None,
         time: float | None = None,
@@ -60,9 +60,10 @@ class ConversationBuilder:
                 "create_time": time if time is not None else self.create_time + self._counter * 60,
                 "content": content,
                 "metadata": metadata or {},
-                "recipient": recipient,
             },
         }
+        if recipient is not None:  # the 2026 export leaves it out
+            self.mapping[node_id]["message"]["recipient"] = recipient
         self._last = node_id
         self.current_node = node_id
         return node_id
@@ -151,3 +152,18 @@ PNG_1PX = (
     b"\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00"
     b"\x00\x00\x00IEND\xaeB`\x82"
 )
+
+
+def thinking_turn(builder: ConversationBuilder) -> None:
+    """A thinking turn as the 2026 export has it: no recipients, no preamble flags."""
+    builder.user("q", recipient=None)
+    thoughts = {"content_type": "thoughts", "thoughts": [{"summary": "Plan", "content": "Do it"}]}
+    builder.add("assistant", thoughts, recipient=None)
+    builder.assistant("Checking the docs.", recipient=None)
+    builder.add("assistant", thoughts, recipient=None)
+    builder.add(
+        "assistant",
+        {"content_type": "reasoning_recap", "content": "Thought for 9s"},
+        recipient=None,
+    )
+    builder.assistant("The answer.", recipient=None)

@@ -146,6 +146,14 @@ def escape_html(text: str) -> str:
     return map_prose(text, html_escaped)
 
 
+def link_url(url: str) -> str:
+    """A URL that survives as a Markdown link destination."""
+    url = url.strip().replace(" ", "%20").replace("<", "%3C").replace(">", "%3E")
+    if url.count("(") != url.count(")"):
+        url = url.replace("(", "%28").replace(")", "%29")
+    return url
+
+
 def fence_for(content: str, char: str = "`") -> str:
     """A code fence long enough to wrap ``content`` safely."""
     longest = max((len(m) for m in re.findall(re.escape(char) + "{3,}", content)), default=0)
