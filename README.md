@@ -117,9 +117,10 @@ what should I not miss?
 
 - One Markdown note per conversation, sorted by year. [See a full example.](https://github.com/mohamed-chs/convoviz/blob/main/docs/example/Planning%20a%20trip%20to%20Kyoto.md)
 - Sources as footnotes, reasoning and tool output folded, edited replies kept.
-- Images, files and Canvas documents saved next to the notes.
+- Images, files, Canvas documents and Claude artifacts saved next to the notes.
+- Claude projects (instructions and knowledge files) and Claude's memory, each on its own page.
 - An index, and a sortable table of every conversation in Obsidian.
-- `insights.html`: charts and word clouds of how you use ChatGPT, offline.
+- `insights.html`: charts and word clouds of how you use ChatGPT and Claude, offline.
 
 <p align="center">
   <picture>
