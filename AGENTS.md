@@ -24,7 +24,7 @@ Always go through `uv` (`uv add` for dependencies, never hand-edit versions).
 | Lint | `uv run ruff check src tests` (`--fix` for autofixes) |
 | Format | `uv run ruff format` |
 | Types | `uv run ty check src tests` |
-| Golden output | `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py`, then review the diff |
+| Golden output | `UPDATE_GOLDEN=1 uv run pytest tests/test_render.py tests/test_claude.py`, then review the diff |
 
 Run all four checks and fix everything before calling work done.
 

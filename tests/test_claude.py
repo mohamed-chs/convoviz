@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import replace
 from datetime import UTC
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 from factory import (
     CLAUDE_ROOT,
@@ -44,9 +46,6 @@ from convoviz.render import (
 )
 from convoviz.source import ExportSource
 from convoviz.tree import Fork, linearize
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _parse(raw: dict[str, Any], diagnostics: Diagnostics | None = None) -> Conversation:
@@ -449,3 +448,95 @@ def test_memory_page(tmp_path: Path) -> None:
     assert text.startswith("# Claude memory\n")
     assert "## /areas/garden.md\n\n*Updated 2026-01-02*\n\n### Garden\nRaised beds." in text
     assert "title: garden" not in text
+
+
+GOLDEN = Path(__file__).parent / "golden" / "claude.md"
+
+
+def rich_claude_conversation() -> dict[str, Any]:
+    """One Claude conversation that exercises most of what the adapter handles."""
+    b = ClaudeBuilder(name="Garden plan: beds & soil")
+    first = b.human(
+        "Plan my <b>garden</b> for $50.",
+        attachments=[
+            {"file_name": "notes.md", "file_type": "md", "extracted_content": "# Beds\nTwo."},
+            {"file_name": "", "file_type": "txt", "extracted_content": "pasted list"},
+        ],
+        files=[{"file_name": "yard.jpg", "file_uuid": "f1"}],
+    )
+    b.assistant("An answer you regenerated.")
+    citation = {
+        "end_index": 21,
+        "details": {"type": "web_search_citation", "url": "https://e.com/s"},
+    }
+    b.assistant(
+        [
+            {"type": "thinking", "thinking": "Budget first.", "summaries": [{"summary": "Budget"}]},
+            tool_use("web_search", {"query": "soil"}, "t0"),
+            tool_result(
+                "web_search",
+                [{"type": "knowledge", "title": "Soil", "url": "https://e.com/s"}],
+                "t0",
+            ),
+            {
+                "type": "text",
+                "text": "Loam suits vegetables. # Not a heading",
+                "citations": [citation],
+            },
+            tool_use(
+                "artifacts",
+                {
+                    "command": "create",
+                    "id": "plan",
+                    "type": "text/markdown",
+                    "title": "Plan",
+                    "content": "# Plan\n- beds",
+                },
+                "t1",
+            ),
+            tool_use("Bash", {"command": "echo $((2 * 25))"}, "t2"),
+            tool_result("", [{"type": "text", "text": "50"}], "t2"),
+        ],
+        parent=first,
+    )
+    b.human("Add tomatoes, save a script, and file an issue.")
+    b.assistant(
+        [
+            tool_use(
+                "artifacts",
+                {
+                    "command": "update",
+                    "id": "plan",
+                    "old_str": "- beds",
+                    "new_str": "- beds\n- tomatoes",
+                },
+                "t3",
+            ),
+            tool_use(
+                "create_file",
+                {"path": "/mnt/user-data/outputs/water.py", "file_text": "every = 2\n"},
+                "t4",
+            ),
+            tool_use(
+                "str_replace",
+                {"path": "/mnt/user-data/outputs/water.py", "old_str": "2", "new_str": "3"},
+                "t5",
+            ),
+            tool_use("GitHub:create_issue", {"title": "Buy seeds"}, "t6"),
+            tool_result("GitHub:create_issue", [{"type": "text", "text": "Created #7"}], "t6"),
+            tool_use("memory_user_edits", {"command": "add", "control": "Grows tomatoes"}, "t7"),
+            {"type": "text", "text": "Done."},
+        ]
+    )
+    return b.build()
+
+
+def test_golden_claude_conversation() -> None:
+    conversation = _parse(rich_claude_conversation())
+    assert document_files(conversation)
+    text = render_conversation(
+        conversation, RenderOptions(timezone=UTC), lambda _: None, lambda p: f"../../{p}"
+    ).text
+    if os.environ.get("UPDATE_GOLDEN") or not GOLDEN.exists():
+        GOLDEN.write_text(text, encoding="utf-8")
+    assert text == GOLDEN.read_text(encoding="utf-8")

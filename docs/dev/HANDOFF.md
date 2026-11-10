@@ -107,8 +107,8 @@ first reports from users. The design aims to make them visible
   from its path is searched for by its `conversation_id` property (moved →
   `pinned`, not found → `deleted` tombstone). Managed files (`index.md`,
   `Conversations.base`, `insights.html`) have hashes under `files`.
-- `tests/golden/rich.md` is the reference rendering. Any output change shows
-  up there.
+- `tests/golden/rich.md` (ChatGPT) and `tests/golden/claude.md` are the
+  reference renderings. Any output change shows up there.
 - `tests/demo.py` builds a seeded, made-up export of about 1,500
   conversations. It is the source of the README's example note
   (`docs/example/`, checked by `tests/test_demo.py`) and its images

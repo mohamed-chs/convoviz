@@ -17,6 +17,7 @@ from convoviz.render import RenderOptions
 from convoviz.writer import Writer, WriteReport
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
     from convoviz.writer import Layout
@@ -397,7 +398,7 @@ def test_canvas_documents_are_saved_as_files(run) -> None:
 
 
 def _write_claude(
-    out: Path, conversations: list[dict], projects: tuple[Project, ...] = ()
+    out: Path, conversations: list[dict], projects: Sequence[Project] = ()
 ) -> WriteReport:
     parsed = [c for raw in conversations if (c := parse_claude(raw, Diagnostics()))]
     export = LoadedExport(parsed, AssetIndex(), list(projects))
