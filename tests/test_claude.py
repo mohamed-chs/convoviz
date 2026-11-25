@@ -181,6 +181,14 @@ def test_thinking_and_hidden_blocks() -> None:
     assert diagnostics.counters["hidden:injected_prompt_block"] == 1
 
 
+def test_thinking_with_malformed_summaries_is_tolerated() -> None:
+    b = ClaudeBuilder()
+    b.assistant([{"type": "thinking", "thinking": "Let me see.", "summaries": True}])
+    diagnostics = Diagnostics()
+    assert _blocks(_parse(b.build(), diagnostics)) == [ReasoningBlock("Let me see.")]
+    assert not diagnostics.errors
+
+
 def test_unknown_block_keeps_its_text() -> None:
     b = ClaudeBuilder()
     b.assistant([{"type": "hologram", "text": "still readable"}])
