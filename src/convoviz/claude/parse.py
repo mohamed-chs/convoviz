@@ -424,9 +424,12 @@ def _thinking(item: dict[str, Any]) -> list[Block]:
     text = (as_str(item.get("thinking")) or "").strip()
     if not text:
         return []
+    entries = item.get("summaries")
+    if not isinstance(entries, list):
+        entries = []
     summaries = [
         summary.strip()
-        for entry in item.get("summaries") or ()
+        for entry in entries
         if isinstance(entry, dict) and (summary := as_str(entry.get("summary"))) and summary.strip()
     ]
     return [ReasoningBlock(text, summaries[-1] if summaries else None)]

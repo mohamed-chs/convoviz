@@ -5,6 +5,10 @@ versions follow [SemVer](https://semver.org).
 
 ## Unreleased
 
+### Fixed
+
+- Malformed thinking summaries in a Claude export no longer drop the whole message.
+
 ## 2.0.0 — 2026-11
 
 ### Added
